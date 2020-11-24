@@ -1,0 +1,21 @@
+{
+  "name": "mikltrees",
+  "version": "0.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "mocha test/test-*.js",
+    "coverage": "c8 --reporter=html mocha test/test-*.js && npm_config_yes=true npx st -d coverage -p 8080"
+  },
+  "keywords": [],
+  "author": "Mikeal Rogers <mikeal.rogers@gmail.com> (https://www.mikealrogers.com/)",
+  "license": "(Apache-2.0 AND MIT)",
+  "description": "",
+  "devDependencies": {
+    "@ipld/dag-cbor": "^2.0.3",
+    "c8": "^7.3.5",
+    "mocha": "^8.2.1",
+    "multiformats": "^4.4.1",
+    "standard": "^16.0.3"
+  }
+}
