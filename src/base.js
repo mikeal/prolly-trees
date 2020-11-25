@@ -1,3 +1,4 @@
+import { encode } from 'multiformats/block'
 
 class Entry {
   constructor ({ key, address }) {
@@ -70,29 +71,83 @@ class Node {
   }
 }
 
+class IPLDNode extends Node {
+  constructor ({ codec, hasher, block, ...opts }) {
+    super(opts)
+    this.codec = codec
+    this.hasher = hasher
+    if (!block) {
+      this.block = this.encode()
+      this.address = this.block.then(block => block.cid)
+    } else {
+      this.block = block
+      this.address = block.cid
+    }
+  }
+
+  async get (key) {
+    const entry = await this.getEntry(key)
+    return entry.key
+  }
+
+  async encode () {
+    if (this.block) return this.block
+    const value = await this.encodeNode()
+    const opts = { codec: this.codec, hasher: this.hasher, value }
+    this.block = encode(opts)
+    return this.block
+  }
+}
+
+class IPLDBranch extends IPLDNode {
+  async encodeNode () {
+    const { entries } = this.entryList
+    const mapper = async entry => [entry.key, await entry.address]
+    const list = await Promise.all(entries.map(mapper))
+    return { branch: [this.distance, list], closed: this.closed }
+  }
+
+  get isBranch () {
+    return true
+  }
+}
+
+class IPLDLeaf extends IPLDNode {
+  encodeNode () {
+    const list = this.entryList.entries.map(entry => entry.encodeNode())
+    return { leaf: list, closed: this.closed }
+  }
+
+  get isLeaf () {
+    return true
+  }
+}
+
 const create = async function * (obj) {
   let {
-    LeafNodeClass,
+    LeafClass,
     LeafEntryClass,
-    BranchNodeClass,
+    BranchClass,
     BranchEntryClass,
     list,
     chunker,
     sorted,
     compare,
-    ...opts } = obj
+    ...opts
+  } = obj
   if (!sorted) list = list.sort(compare)
   list = list.map(value => new LeafEntryClass(value))
   opts.compare = compare
-  let nodes = await Node.from({ entries: list, chunker, NodeClass: LeafNodeClass, distance: 0, opts })
+  let nodes = await Node.from({ entries: list, chunker, NodeClass: LeafClass, distance: 0, opts })
   yield * nodes
   let distance = 1
   while (nodes.length > 1) {
-    const entries = nodes.map(node => new BranchEntryClass(node))
-    nodes = await Node.from({ entries, chunker, NodeClass: BranchNodeClass, distance, opts })
+    const mapper = async node => new BranchEntryClass({ key: node.key, address: await node.address })
+    const entries = await Promise.all(nodes.map(mapper))
+    nodes = await Node.from({ entries, chunker, NodeClass: BranchClass, distance, opts })
     yield * nodes
     distance++
   }
 }
 
-export { Node, Entry, EntryList, create }
+export { Node, Entry, EntryList, IPLDNode, IPLDLeaf, IPLDBranch, create }

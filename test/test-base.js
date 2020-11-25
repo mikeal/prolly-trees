@@ -14,14 +14,14 @@ const validate = (node, check) => {
 
 describe('base', () => {
   const opts = {
-    LeafNodeClass: Node,
+    LeafClass: Node,
     LeafEntryClass: Entry,
-    BranchNodeClass: Node,
+    BranchClass: Node,
     BranchEntryClass: Entry,
     chunker
   }
   it('basic create', async () => {
-    const list = [ false, true, false ].map(mapper)
+    const list = [false, true, false].map(mapper)
     const checks = [
       { entries: 2, closed: true, distance: 0 },
       { entries: 1, closed: false, distance: 0 },
@@ -35,6 +35,7 @@ describe('base', () => {
   it('EntryList must have closed argument', () => {
     let threw = true
     try {
+      /* eslint-disable-next-line */
       new EntryList({})
       threw = false
     } catch (e) {

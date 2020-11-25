@@ -8,8 +8,8 @@ import { nocache } from '../src/cache.js'
 import { bf, enc32 } from '../src/utils.js'
 
 const MAX_UINT32 = 4294967295
-const chunker = bf(3)
-const threshold = Math.floor(MAX_UINT32 / 3)
+const chunker = bf(30000)
+const threshold = Math.floor(MAX_UINT32 / 30000)
 
 const cid = CID.parse('zdj7Wd8AMwqnhJGQCbFxBVodGSBG84TM7Hs1rcJuQMwTyfEDS')
 const baseBytes = cid.bytes.slice()
@@ -18,10 +18,10 @@ const mkcid = (sort, num) => {
   const bytes = baseBytes.slice()
   bytes[bytes.byteLength - 5] = sort
   num = enc32(num)
-  let offset = bytes.byteLength - 4
+  const offset = bytes.byteLength - 4
   let i = 0
   while (i < 4) {
-    bytes[offset+i] = num[i]
+    bytes[offset + i] = num[i]
     i++
   }
   return CID.decode(bytes)
@@ -65,7 +65,7 @@ const verify = (check, node) => {
 describe('cid set', () => {
   it('basic create', async () => {
     const { get, put } = storage()
-    const list = mkcids([ threshold + 1, threshold - 2, threshold + 2 ])
+    const list = mkcids([threshold + 1, threshold - 2, threshold + 2])
     const checks = [
       { isLeaf: true, entries: 2, closed: true },
       { isLeaf: true, entries: 1, closed: false },
@@ -73,6 +73,7 @@ describe('cid set', () => {
     ]
     let root
     for await (const node of create({ get, list, ...opts })) {
+      // console.log(node.entryList)
       const address = await node.address
       same(address.asCID, address)
       verify(checks.shift(), node)
