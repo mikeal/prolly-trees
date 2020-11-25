@@ -1,6 +1,8 @@
-import { Node, Entry, create as baseCreate } from './base.js'
+import { Node, Entry, EntryList, create as baseCreate } from './base.js'
 import { encode } from 'multiformats/block'
-import { readUInt32LE } from './utils.js'
+import { readUInt32LE, binaryCompare } from './utils.js'
+
+const compare = ({ bytes: a }, { bytes: b }) => binaryCompare(a, b)
 
 class CIDEntry extends Entry {
   constructor (cid) {
@@ -18,7 +20,7 @@ class CIDEntry extends Entry {
   }
 }
 
-class CIDBranchEntry extends Entry {
+class CIDNodeEntry extends Entry {
   constructor (node) {
     super(node)
   }
@@ -40,6 +42,11 @@ class CIDSetNode extends Node {
       this.block = block
       this.address = block.cid
     }
+  }
+
+  async get (cid) {
+    const entry = await this.getEntry(cid)
+    return entry.key
   }
 
   async encode () {
@@ -78,15 +85,22 @@ class CIDSetLeaf extends CIDSetNode {
 const createGetNode = (get, cache, chunker, codec, hasher) => {
   const decoder = block => {
     const { value } = block
-    const opts = { closed: value.closed, chunker, cache, block, getNode }
-    let node
+    const opts = { chunker, cache, block, getNode, codec, hasher, compare }
+    let entries
+    let CLS
     if (value.leaf) {
-      node = new CIDSetLeaf({ entries: value.leaf, ...opts })
+      entries = value.leaf.map(cid => new CIDEntry(cid))
+      CLS = CIDSetLeaf
     } else if (value.branch) {
-      node = new CIDSetBranch({ entries: value.branch, ...opts })
+      const [ distance, _entries ] = value.branch
+      opts.distance = distance
+      entries = _entries.map(([ key, address]) => new CIDNodeEntry({ key, address}))
+      CLS = CIDSetBranch
     } else {
       throw new Error('Unknown block data, does not match schema')
     }
+    const entryList = new EntryList({ entries, closed: value.closed })
+    const node = new CLS({ entryList, ...opts })
     cache.set(block.cid, node)
     return node
   }
@@ -97,7 +111,7 @@ const createGetNode = (get, cache, chunker, codec, hasher) => {
   return getNode
 }
 
-const create = ({ get, cache, chunker, list, codec, hasher }) => {
+const create = ({ get, cache, chunker, list, codec, hasher, sorted }) => {
   const getNode = createGetNode(get, cache, chunker, codec, hasher)
   const opts = {
     list,
@@ -105,11 +119,13 @@ const create = ({ get, cache, chunker, list, codec, hasher }) => {
     hasher,
     chunker,
     getNode,
+    sorted,
+    compare,
     cache,
     LeafNodeClass: CIDSetLeaf,
     LeafEntryClass: CIDEntry,
     BranchNodeClass: CIDSetBranch,
-    BranchEntryClass: CIDBranchEntry
+    BranchEntryClass: CIDNodeEntry
   }
   return baseCreate(opts)
 }

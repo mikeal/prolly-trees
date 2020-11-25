@@ -15,11 +15,25 @@ class EntryList {
   }
 }
 
+const findEntry = (key, node) => {
+  const { entries } = node.entryList
+  for (let i = entries.length - 1; i > -1; i--) {
+    const entry = entries[i]
+    const comp = node.compare(key, entry.key)
+    if (comp > -1) {
+      return entry
+    }
+  }
+  throw new Error('key is out of bounds')
+}
+
 class Node {
-  constructor ({ entryList, chunker, distance }) {
+  constructor ({ entryList, chunker, distance, getNode, compare }) {
     this.entryList = entryList
     this.chunker = chunker
     this.distance = distance
+    this.getNode = getNode
+    this.compare = compare
   }
 
   get closed () {
@@ -28,6 +42,15 @@ class Node {
 
   get key () {
     return this.entryList.startKey
+  }
+
+  async getEntry (key) {
+    let node = this
+    while (!node.isLeaf) {
+      const entry = findEntry(key, node)
+      node = await this.getNode(await entry.address)
+    }
+    return findEntry(key, node)
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
@@ -55,8 +78,12 @@ const create = async function * (obj) {
     BranchEntryClass,
     list,
     chunker,
+    sorted,
+    compare,
     ...opts } = obj
+  if (!sorted) list = list.sort(compare)
   list = list.map(value => new LeafEntryClass(value))
+  opts.compare = compare
   let nodes = await Node.from({ entries: list, chunker, NodeClass: LeafNodeClass, distance: 0, opts })
   yield * nodes
   let distance = 1

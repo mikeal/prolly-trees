@@ -34,4 +34,20 @@ const enc64 = num => {
   return b
 }
 
-export { readUInt32LE, enc32, enc64, bf }
+const binaryCompare = (b1, b2) => {
+  // Note: last perf profile of mutations showed that this function
+  // is LazyCompile and using up a lot of the time. with some tweaking
+  // this can probably get inlined
+  for (let i = 0; i < b1.byteLength; i++) {
+    if (b2.byteLength === i) return 1
+    const c1 = b1[i]
+    const c2 = b2[i]
+    if (c1 === c2) continue
+    if (c1 > c2) return 1
+    else return -1
+  }
+  if (b2.byteLength > b1.byteLength) return -1
+  return 0
+}
+
+export { readUInt32LE, enc32, enc64, bf, binaryCompare }
