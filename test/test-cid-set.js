@@ -43,13 +43,26 @@ const storage = () => {
 
 const opts = { cache, chunker, codec, hasher }
 
+const verify = (check, node) => {
+  same(check.isLeaf, node.isLeaf)
+  same(check.isBranch, node.isBranch)
+  same(check.entries, node.entryList.entries.length)
+  same(check.closed, node.closed)
+}
+
 describe('cid set', () => {
   it('basic create', async () => {
     const { get, put } = storage()
     const list = [ threshold + 1, threshold - 2, threshold + 2 ].map(mkcid)
-    console.log(list)
+    const checks = [
+      { isLeaf: true, entries: 2, closed: true },
+      { isLeaf: true, entries: 1, closed: false },
+      { isBranch: true, entries: 2, closed: false }
+    ]
     for await (const node of create({ get, list, ...opts })) {
-      console.log(node)
+      const address = await node.address
+      same(address.asCID, address)
+      verify(checks.shift(), node)
     }
   })
 })
