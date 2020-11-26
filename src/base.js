@@ -16,6 +16,67 @@ class EntryList {
     this.closed = closed
     this.startKey = entries[0].key
   }
+
+  find (key, compare) {
+    const { entries } = this
+    for (let i = entries.length - 1; i > -1; i--) {
+      const entry = entries[i]
+      const comp = compare(key, entry.key)
+      if (comp > -1) {
+        return [i, entry]
+      }
+    }
+  }
+
+  findMany (keys, compare, sorted = false) {
+    const { entries } = this
+    const results = new Map()
+    if (!sorted) keys = keys.sort(compare)
+    else keys = [...keys]
+    for (let i = entries.length - 1; i > -1; i--) {
+      if (!keys.length) break
+      const entry = entries[i]
+      const found = []
+      while (keys.length) {
+        const key = keys[keys.length - 1]
+        const comp = compare(key, entry.key)
+        if (comp > -1) {
+          keys.pop()
+          found.push(entry)
+        } else {
+          break
+        }
+      }
+      if (found.length) {
+        results.set(i, found)
+      }
+    }
+    return results
+  }
+
+  findRange (start, end, compare) {
+    const { entries } = this
+    const result = { first: null, last: null }
+    for (let i = entries.length - 1; i > -1; i--) {
+      const entry = entries[i]
+      let comp
+      if (result.last === null) {
+        comp = compare(end, entry.key)
+        if (comp > -1) {
+          result.end = i
+        }
+      }
+      if (result.first === null) {
+        comp = compare(start, entry.key)
+        if (comp < 0) {
+          result.first = i + 1
+        }
+      }
+    }
+    if (result.first === null) result.first = 0
+    result.entries = entries.slice(result.first, result.last + 1)
+    return result
+  }
 }
 
 const findEntry = (key, node) => {

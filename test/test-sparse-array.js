@@ -34,7 +34,7 @@ const verify = (check, node) => {
 
 const createList = entries => entries.map(([key, value]) => ({ key, value }))
 
-describe('map', () => {
+describe('sparse array', () => {
   it('basic create', async () => {
     const { get, put } = storage()
     const v = 'value'
