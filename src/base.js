@@ -42,14 +42,13 @@ class EntryList {
         const key = keys[keys.length - 1]
         const comp = compare(key, entry.key)
         if (comp > -1) {
-          keys.pop()
-          found.push(entry)
+          found.push(keys.pop())
         } else {
           break
         }
       }
       if (found.length) {
-        results.set(i, found)
+        results.set(i, [ entry, found ])
       }
     }
     return results
@@ -109,6 +108,21 @@ class Node {
     if (result === null) throw new Error('Not found')
     const [, entry] = result
     return entry
+  }
+
+  async getEntries (keys, sorted = false) {
+    if (!sorted) keys = keys.sort(this.compare)
+    const results = this.entryList.findMany(keys, this.compare, true)
+    if (this.isLeaf) {
+      return [...results.values()].map(([entry]) => entry)
+    }
+    let entries = []
+    for (const [ entry, keys ] of [...results.values()].reverse()) {
+      const p = this.getNode(await entry.address)
+      entries.push(p.then(node => node.getEntries(keys.reverse(), true)))
+    }
+    entries = await Promise.all(entries)
+    return entries.flat()
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {

@@ -33,23 +33,23 @@ const verify = (check, node) => {
 }
 
 const createList = entries => entries.map(([key, value]) => ({ key, value }))
+const v = 'value'
+const list = createList([
+  [1, v],
+  [2, v],
+  [10, v],
+  [15, v],
+  [20, v],
+  [200, v],
+  [210, v],
+  [290, v],
+  [300, v],
+  [10000, v]
+])
 
 describe('sparse array', () => {
   it('basic create', async () => {
     const { get, put } = storage()
-    const v = 'value'
-    const list = createList([
-      [1, v],
-      [2, v],
-      [10, v],
-      [15, v],
-      [20, v],
-      [200, v],
-      [210, v],
-      [290, v],
-      [300, v],
-      [10000, v]
-    ])
     const checks = [
       [true, undefined, 2, true],
       [true, undefined, 1, true],
@@ -73,4 +73,23 @@ describe('sparse array', () => {
       same(await root.get(key), v)
     }
   })
+  it('getEntries & getMany', async () => {
+    const { get, put } = storage()
+    let root
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      root = node
+    }
+    const entries = await root.getEntries([2, 10000])
+    same(entries.length, 2)
+    const [ a, b ] = entries
+    same(a.key, 2)
+    same(a.value, v)
+    same(b.key, 10000)
+    same(b.value, v)
+    const values = await root.getMany([2, 10000])
+    same(values, [v, v])
+  })
+
 })

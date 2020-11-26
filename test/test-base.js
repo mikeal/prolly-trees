@@ -67,8 +67,9 @@ describe('base', () => {
   })
   it('entryList findMany', () => {
     const results = entryListFixture.findMany([1, 3, 5], compare)
-    const comp = [...results.keys()].sort(compare).map(key => [ key, results.get(key)[0].key ])
-    same(comp, [[1, 1], [3, 3], [5, 5]])
+    const mapper = key => [ key, results.get(key)[0].key, ...results.get(key)[1] ]
+    const comp = [...results.keys()].sort(compare).map(mapper)
+    same(comp, [[1, 1, 1], [3, 3, 3], [5, 5, 5]])
   })
   it('entryList findRange', () => {
     const results = entryListFixture.findRange(2, 5, compare)

@@ -26,16 +26,30 @@ class MapBranchEntry extends MapEntry {
   }
 }
 
+const getValue = async (node, key) => {
+  const entry = await node.getEntry(key)
+  return entry.value
+}
+
+const getManyValues = async (node, keys) => {
+  const entries = await node.getEntries(keys)
+  return entries.map(entry => entry.value)
+}
+
 class MapLeaf extends IPLDLeaf {
-  async get (key) {
-    const entry = await this.getEntry(key)
-    return entry.value
+  get (key) {
+    return getValue(this, key)
+  }
+  getMany (keys) {
+    return getManyValues(this, keys)
   }
 }
 class MapBranch extends IPLDBranch {
-  async get (key) {
-    const entry = await this.getEntry(key)
-    return entry.value
+  get (key) {
+    return getValue(this, key)
+  }
+  getMany (keys) {
+    return getManyValues(this, keys)
   }
 }
 

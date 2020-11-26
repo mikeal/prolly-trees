@@ -34,21 +34,22 @@ const verify = (check, node) => {
 
 const createList = entries => entries.map(([key, value]) => ({ key, value }))
 
+const list = createList([
+  ['a', 1],
+  ['b', 1],
+  ['bb', 2],
+  ['c', 1],
+  ['cc', 2],
+  ['d', 1],
+  ['ff', 2],
+  ['h', 1],
+  ['z', 1],
+  ['zz', 2]
+])
+
 describe('map', () => {
   it('basic create', async () => {
     const { get, put } = storage()
-    const list = createList([
-      ['a', 1],
-      ['b', 1],
-      ['bb', 2],
-      ['c', 1],
-      ['cc', 2],
-      ['d', 1],
-      ['ff', 2],
-      ['h', 1],
-      ['z', 1],
-      ['zz', 2]
-    ])
     const checks = [
       [true, undefined, 1, true],
       [true, undefined, 3, true],
@@ -72,5 +73,23 @@ describe('map', () => {
     for (const { key } of list) {
       same(await root.get(key), key.length)
     }
+  })
+  it('getEntries & getMany', async () => {
+    const { get, put } = storage()
+    let root
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      root = node
+    }
+    const entries = await root.getEntries(['a', 'zz'])
+    same(entries.length, 2)
+    const [ a, zz ] = entries
+    same(a.key, 'a')
+    same(a.value, 1)
+    same(zz.key, 'zz')
+    same(zz.value, 2)
+    const values = await root.getMany(['a', 'zz'])
+    same(values, [1, 2])
   })
 })
