@@ -70,10 +70,16 @@ describe('base', () => {
     const comp = [...results.keys()].sort(compare).map(key => [ key, results.get(key)[0].key ])
     same(comp, [[1, 1], [3, 3], [5, 5]])
   })
-  /* doesn't work yet
   it('entryList findRange', () => {
     const results = entryListFixture.findRange(2, 5, compare)
-    console.log(results)
+    same(results.first, 2)
+    same(results.last, 5)
+    let i = 2
+    while (results.entries.length) {
+      const entry = results.entries.shift()
+      same(entry.key, i)
+      i++
+    }
+    same(i, 6)
   })
-  */
 })

@@ -26,6 +26,7 @@ class EntryList {
         return [i, entry]
       }
     }
+    return null
   }
 
   findMany (keys, compare, sorted = false) {
@@ -63,12 +64,12 @@ class EntryList {
       if (result.last === null) {
         comp = compare(end, entry.key)
         if (comp > -1) {
-          result.end = i
+          result.last = i
         }
       }
-      if (result.first === null) {
+      if (result.last !== null && result.first === null) {
         comp = compare(start, entry.key)
-        if (comp < 0) {
+        if (comp > 0) {
           result.first = i + 1
         }
       }
@@ -77,18 +78,6 @@ class EntryList {
     result.entries = entries.slice(result.first, result.last + 1)
     return result
   }
-}
-
-const findEntry = (key, node) => {
-  const { entries } = node.entryList
-  for (let i = entries.length - 1; i > -1; i--) {
-    const entry = entries[i]
-    const comp = node.compare(key, entry.key)
-    if (comp > -1) {
-      return entry
-    }
-  }
-  throw new Error('key is out of bounds')
 }
 
 class Node {
@@ -111,10 +100,15 @@ class Node {
   async getEntry (key) {
     let node = this
     while (!node.isLeaf) {
-      const entry = findEntry(key, node)
+      const result = node.entryList.find(key, this.compare)
+      if (result === null) throw new Error('Not found')
+      const [, entry] = result
       node = await this.getNode(await entry.address)
     }
-    return findEntry(key, node)
+    const result = node.entryList.find(key, this.compare)
+    if (result === null) throw new Error('Not found')
+    const [, entry] = result
+    return entry
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
