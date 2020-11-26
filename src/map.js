@@ -3,15 +3,15 @@ import { readUInt32LE } from './utils.js'
 
 class MapEntry extends Entry {
   async identity () {
-    const encoded = this.codec.encode(this.encode())
+    const encoded = this.codec.encode(this.encodeNode())
     const hash = await this.hasher.encode(encoded)
     return readUInt32LE(hash)
   }
 }
 
 class MapLeafEntry extends MapEntry {
-  constructor (node) {
-    super(node)
+  constructor (node, opts) {
+    super(node, opts)
     this.value = node.value
   }
 
@@ -21,30 +21,45 @@ class MapLeafEntry extends MapEntry {
 }
 
 class MapBranchEntry extends MapEntry {
-  encode () {
+  encodeNode () {
     return [this.key, this.address]
   }
 }
 
 class MapLeaf extends IPLDLeaf {
+  async get (key) {
+    const entry = await this.getEntry(key)
+    return entry.value
+  }
 }
 class MapBranch extends IPLDBranch {
+  async get (key) {
+    const entry = await this.getEntry(key)
+    return entry.value
+  }
 }
 
-const createGetNode = (get, cache, chunker, codec, hasher, compare) => {
+const createGetNode = (get, cache, chunker, codec, hasher, compare, opts) => {
+  const LeafClass = opts.LeafClass || MapLeaf
+  const LeafEntryClass = opts.LeafEntryClass || MapLeafEntry
+  const BranchClass = opts.BranchClass || MapBranch
+  const BranchEntryClass = opts.BranchEntryClass || MapBranchEntry
+
+  const entryOpts = { codec, hasher }
+
   const decoder = block => {
     const { value } = block
     const opts = { chunker, cache, block, getNode, codec, hasher, compare }
     let entries
     let CLS
     if (value.leaf) {
-      entries = value.leaf.map(([key, value]) => new MapLeafEntry({ key, value }))
-      CLS = MapLeaf
+      entries = value.leaf.map(([key, value]) => new LeafEntryClass({ key, value }, entryOpts))
+      CLS = LeafClass
     } else if (value.branch) {
       const [distance, _entries] = value.branch
       opts.distance = distance
-      entries = _entries.map(([key, address]) => new MapBranchEntry({ key, address }))
-      CLS = MapBranch
+      entries = _entries.map(([key, address]) => new BranchEntryClass({ key, address }, entryOpts))
+      CLS = BranchClass
     } else {
       throw new Error('Unknown block data, does not match schema')
     }
@@ -60,9 +75,10 @@ const createGetNode = (get, cache, chunker, codec, hasher, compare) => {
   return getNode
 }
 
-const create = ({ get, cache, chunker, list, codec, hasher, sorted, compare }) => {
-  const getNode = createGetNode(get, cache, chunker, codec, hasher, compare)
-  const opts = {
+const create = ({ get, cache, chunker, list, codec, hasher, sorted, compare, ...opts }) => {
+  if (!sorted) list = list.sort(({ key: a }, { key: b }) => compare(a, b))
+  const getNode = createGetNode(get, cache, chunker, codec, hasher, compare, opts)
+  const _opts = {
     list,
     codec,
     hasher,
@@ -71,12 +87,12 @@ const create = ({ get, cache, chunker, list, codec, hasher, sorted, compare }) =
     sorted,
     compare,
     cache,
-    LeafClass: MapLeaf,
-    LeafEntryClass: MapLeafEntry,
-    BranchClass: MapBranch,
-    BranchEntryClass: MapBranchEntry
+    LeafClass: opts.LeafClass || MapLeaf,
+    LeafEntryClass: opts.LeafEntryClass || MapLeafEntry,
+    BranchClass: opts.BranchClass || MapBranch,
+    BranchEntryClass: opts.BranchEntryClass || MapBranchEntry
   }
-  return baseCreate(opts)
+  return baseCreate(_opts)
 }
 
-export { create }
+export { create, MapLeaf, MapBranch }

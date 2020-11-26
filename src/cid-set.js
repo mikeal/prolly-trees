@@ -62,6 +62,7 @@ const createGetNode = (get, cache, chunker, codec, hasher, compare) => {
 }
 
 const create = ({ get, cache, chunker, list, codec, hasher, sorted }) => {
+  if (!sorted) list = list.sort(compare)
   const getNode = createGetNode(get, cache, chunker, codec, hasher, compare)
   const opts = {
     list,

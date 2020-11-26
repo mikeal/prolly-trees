@@ -1,9 +1,11 @@
 import { encode } from 'multiformats/block'
 
 class Entry {
-  constructor ({ key, address }) {
+  constructor ({ key, address }, opts = {}) {
     this.key = key
     this.address = address
+    this.codec = opts.codec
+    this.hasher = opts.hasher
   }
 }
 
@@ -131,18 +133,16 @@ const create = async function * (obj) {
     BranchEntryClass,
     list,
     chunker,
-    sorted,
     compare,
     ...opts
   } = obj
-  if (!sorted) list = list.sort(compare)
-  list = list.map(value => new LeafEntryClass(value))
+  list = list.map(value => new LeafEntryClass(value, opts))
   opts.compare = compare
   let nodes = await Node.from({ entries: list, chunker, NodeClass: LeafClass, distance: 0, opts })
   yield * nodes
   let distance = 1
   while (nodes.length > 1) {
-    const mapper = async node => new BranchEntryClass({ key: node.key, address: await node.address })
+    const mapper = async node => new BranchEntryClass({ key: node.key, address: await node.address }, opts)
     const entries = await Promise.all(nodes.map(mapper))
     nodes = await Node.from({ entries, chunker, NodeClass: BranchClass, distance, opts })
     yield * nodes
