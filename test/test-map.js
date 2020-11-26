@@ -92,4 +92,26 @@ describe('map', () => {
     const values = await root.getMany(['a', 'zz'])
     same(values, [1, 2])
   })
+  it('getRangeEntries', async () => {
+    const { get, put } = storage()
+    let root
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      root = node
+    }
+    const verify = (entries, start, end) => {
+      const keys = entries.map(entry => entry.key)
+      const comp = list.slice(start, end).map(({ key }) => key)
+      same(keys, comp)
+    }
+    let entries = await root.getRangeEntries('b', 'z')
+    verify(entries, 1, 9)
+    entries = await root.getRangeEntries('', 'zzz')
+    verify(entries)
+    entries = await root.getRangeEntries('a', 'zz')
+    verify(entries)
+    entries = await root.getRangeEntries('a', 'c')
+    verify(entries, 0, 4)
+  })
 })

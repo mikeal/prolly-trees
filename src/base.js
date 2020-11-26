@@ -68,12 +68,15 @@ class EntryList {
       }
       if (result.last !== null && result.first === null) {
         comp = compare(start, entry.key)
-        if (comp > 0) {
+        if (comp === 0) {
+          result.first = i
+        } else if (comp > 0) {
           result.first = i + 1
         }
       }
     }
     if (result.first === null) result.first = 0
+    if (result.first > result.last) result.first = result.last
     result.entries = entries.slice(result.first, result.last + 1)
     return result
   }
@@ -110,6 +113,16 @@ class Node {
     return entry
   }
 
+  getAllEntries () {
+    if (this.isLeaf) {
+      return this.entryList.entries
+    } else {
+      const { entries } = this.entryList
+      const mapper = async entry => this.getNode(await entry.address).then(node => node.getAllEntries())
+      return Promise.all(entries.map(mapper)).then(results => results.flat())
+    }
+  }
+
   async getEntries (keys, sorted = false) {
     if (!sorted) keys = keys.sort(this.compare)
     const results = this.entryList.findMany(keys, this.compare, true)
@@ -123,6 +136,31 @@ class Node {
     }
     entries = await Promise.all(entries)
     return entries.flat()
+  }
+
+  getRangeEntries (start, end) {
+    const { entries } = this.entryList.findRange(start, end, this.compare)
+    if (this.isLeaf) {
+      return entries
+    }
+
+    if (!entries.length) return []
+    const thenRange = async entry => this.getNode(await entry.address).then(node => {
+      return node.getRangeEntries(start, end)
+    })
+    const results = [ thenRange(entries.shift()) ]
+
+    if (!entries.length) return results[0]
+    const last = thenRange(entries.pop())
+
+    while (entries.length) {
+      const thenAll = async entry => this.getNode(await entry.address).then(node => {
+        return node.getAllEntries()
+      })
+      results.push(thenAll(entries.shift()))
+    }
+    results.push(last)
+    return Promise.all(results).then(results => results.flat())
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
