@@ -91,5 +91,26 @@ describe('sparse array', () => {
     const values = await root.getMany([2, 10000])
     same(values, [v, v])
   })
-
+  it('getRangeEntries', async () => {
+    const { get, put } = storage()
+    let root
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      root = node
+    }
+    const verify = (entries, start, end) => {
+      const keys = entries.map(entry => entry.key)
+      const comp = list.slice(start, end).map(({ key }) => key)
+      same(keys, comp)
+    }
+    let entries = await root.getRangeEntries(2, 400)
+    verify(entries, 1, 9)
+    entries = await root.getRangeEntries(0, 99999)
+    verify(entries)
+    entries = await root.getRangeEntries(1, 10000)
+    verify(entries)
+    entries = await root.getRangeEntries(1, 15)
+    verify(entries, 0, 4)
+  })
 })

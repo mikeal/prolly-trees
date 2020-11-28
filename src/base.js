@@ -56,29 +56,29 @@ class EntryList {
 
   findRange (start, end, compare) {
     const { entries } = this
-    const result = { first: null, last: null }
+    let last
+    let first
     for (let i = entries.length - 1; i > -1; i--) {
       const entry = entries[i]
-      let comp
-      if (result.last === null) {
-        comp = compare(end, entry.key)
-        if (comp > -1) {
-          result.last = i
-        }
-      }
-      if (result.last !== null && result.first === null) {
-        comp = compare(start, entry.key)
-        if (comp === 0) {
-          result.first = i
-        } else if (comp > 0) {
-          result.first = i + 1
-        }
+      const comp = compare(end, entry.key)
+      if (comp > -1) {
+        last = i
+        break
       }
     }
-    if (result.first === null) result.first = 0
-    if (result.first > result.last) result.first = result.last
-    result.entries = entries.slice(result.first, result.last + 1)
-    return result
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]
+      const comp = compare(start, entry.key)
+      if (comp === 0) {
+        first = i
+        break
+      } else if (comp < 0) {
+        first = i - 1
+        break
+      }
+    }
+    if (first === -1) first = 0
+    return { first, last, entries: entries.slice(first, last + 1) }
   }
 }
 
