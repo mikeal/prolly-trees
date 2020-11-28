@@ -114,4 +114,20 @@ describe('map', () => {
     entries = await root.getRangeEntries('a', 'c')
     verify(entries, 0, 4)
   })
+  it('getAllEntries', async () => {
+    const { get, put } = storage()
+    let root
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      root = node
+    }
+    const verify = (entries, start, end) => {
+      const keys = entries.map(entry => entry.key)
+      const comp = list.slice(start, end).map(({ key }) => key)
+      same(keys, comp)
+    }
+    let entries = await root.getAllEntries()
+    verify(entries)
+  })
 })
