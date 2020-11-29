@@ -57,7 +57,7 @@ class EntryList {
   findRange (start, end, compare) {
     const { entries } = this
     let last
-    let first
+    let first = 0
     for (let i = entries.length - 1; i > -1; i--) {
       const entry = entries[i]
       const comp = compare(end, entry.key)
@@ -73,11 +73,15 @@ class EntryList {
         first = i
         break
       } else if (comp < 0) {
-        first = i - 1
         break
       }
+      first = i
     }
     if (first === -1) first = 0
+    if (first === undefined) {
+      // not found in this range
+      return { entries: [] }
+    }
     return { first, last, entries: entries.slice(first, last + 1) }
   }
 }
@@ -141,7 +145,11 @@ class Node {
   getRangeEntries (start, end) {
     const { entries } = this.entryList.findRange(start, end, this.compare)
     if (this.isLeaf) {
-      return entries
+      return entries.filter(entry => {
+        const s = this.compare(start, entry.key)
+        const e = this.compare(end, entry.key)
+        if (s <= 0 && e >= 0) return true
+      })
     }
 
     if (!entries.length) return []
