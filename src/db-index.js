@@ -13,18 +13,34 @@ const getIndex = async (node, key) => {
   const start = [ key, 0 ]
   const end = [ key, Infinity ]
   const entries = await node.getRangeEntries(start, end)
-  return entries.map(entry => ({ rowid: entry.key[1], row: entry.value }))
+  return entries.map(entry => ({ id: entry.key[1], row: entry.value }))
+}
+
+const getRange = async (node, start, end) => {
+  start = [ start, 0]
+  end = [ end, Infinity ]
+  const entries = await node.getRangeEntries(start, end)
+  return entries.map(entry => {
+    const [ id, key ] = entry.key
+    return { id, key, row: entry.value }
+  })
 }
 
 class DBIndexLeaf extends MapLeaf {
   get (key) {
     return getIndex(this, key)
   }
+  range (start, end) {
+    return getRange(this, start, end)
+  }
 }
 
 class DBIndexBranch extends MapBranch {
   get (key) {
     return getIndex(this, key)
+  }
+  range (start, end) {
+    return getRange(this, start, end)
   }
 }
 

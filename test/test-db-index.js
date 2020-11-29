@@ -48,7 +48,7 @@ const list = createList([
   [['zz', 9], cid]
 ])
 
-describe('map', () => {
+describe('db index', () => {
   it('basic create', async () => {
     const { get, put } = storage()
     const checks = [
@@ -78,32 +78,13 @@ describe('map', () => {
     for (const { key } of list) {
       const expected = list.map(entry => {
         if (entry.key[0] !== key[0]) return null
-        return { rowid: entry.key[1], row: entry.value }
+        return { id: entry.key[1], row: entry.value }
       }).filter(x => x)
       const result = await root.get(key[0])
       same(result, expected)
     }
   })
-  /*
-  it('getEntries & getMany', async () => {
-    const { get, put } = storage()
-    let root
-    for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
-      await put(await node.block)
-      root = node
-    }
-    const entries = await root.getEntries(['a', 'zz'])
-    same(entries.length, 2)
-    const [ a, zz ] = entries
-    same(a.key, 'a')
-    same(a.value, 1)
-    same(zz.key, 'zz')
-    same(zz.value, 2)
-    const values = await root.getMany(['a', 'zz'])
-    same(values, [1, 2])
-  })
-  it('getRangeEntries', async () => {
+  it('range', async () => {
     const { get, put } = storage()
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
@@ -112,18 +93,20 @@ describe('map', () => {
       root = node
     }
     const verify = (entries, start, end) => {
-      const keys = entries.map(entry => entry.key)
-      const comp = list.slice(start, end).map(({ key }) => key)
-      same(keys, comp)
+      const comp = list.slice(start, end).map(entry => {
+        const [ id, key] = entry.key
+        return { id, key, row: entry.value }
+      })
+      same(entries, comp)
     }
-    let entries = await root.getRangeEntries('b', 'z')
-    verify(entries, 1, 9)
-    entries = await root.getRangeEntries('', 'zzz')
+    let entries = await root.range('b', 'z')
+    verify(entries, 1, 8)
+    entries = await root.range('', 'zzz')
     verify(entries)
-    entries = await root.getRangeEntries('a', 'zz')
+    entries = await root.range('a', 'zz')
     verify(entries)
-    entries = await root.getRangeEntries('a', 'c')
-    verify(entries, 0, 4)
+    entries = await root.range('a', 'c')
+    verify(entries, 0, 5)
   })
   it('getAllEntries', async () => {
     const { get, put } = storage()
@@ -140,6 +123,25 @@ describe('map', () => {
     }
     let entries = await root.getAllEntries()
     verify(entries)
+  })
+  /*
+  it('getEntries & getMany', async () => {
+    const { get, put } = storage()
+    let root
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      root = node
+    }
+    const entries = await root.getEntries(['a', 'z'])
+    same(entries.length, 2)
+    const [ a, zz ] = entries
+    same(a.key, 'a')
+    same(a.value, 1)
+    same(zz.key, 'zz')
+    same(zz.value, 2)
+    const values = await root.getMany(['a', 'zz'])
+    same(values, [1, 2])
   })
   */
 })
