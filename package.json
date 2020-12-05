@@ -17,5 +17,8 @@
     "mocha": "^8.2.1",
     "multiformats": "^4.4.1",
     "standard": "^16.0.3"
+  },
+  "dependencies": {
+    "node-sql-parser": "^3.1.0"
   }
 }
