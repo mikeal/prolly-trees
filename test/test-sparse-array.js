@@ -1,6 +1,6 @@
 /* globals describe, it */
 import { deepStrictEqual as same } from 'assert'
-import { create } from '../src/sparse-array.js'
+import { create, load } from '../src/sparse-array.js'
 import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { nocache } from '../src/cache.js'
@@ -68,7 +68,8 @@ describe('sparse array', () => {
       await put(await node.block)
       root = node
     }
-    root = await root.getNode(await root.address)
+    const cid = await root.address
+    root = await load({ cid, get, compare, ...opts})
     for (const { key } of list) {
       same(await root.get(key), v)
     }

@@ -109,4 +109,9 @@ const create = ({ get, cache, chunker, list, codec, hasher, sorted, compare, ...
   return baseCreate(_opts)
 }
 
-export { create, MapLeaf, MapBranch }
+const load = ({ cid, get, cache, chunker, codec, hasher, compare, ...opts }) => {
+  const getNode = createGetNode(get, cache, chunker, codec, hasher, compare, opts)
+  return getNode(cid)
+}
+
+export { create, load, MapLeaf, MapBranch }

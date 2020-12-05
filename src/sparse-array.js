@@ -1,4 +1,4 @@
-import { create as mapCreate, MapLeaf, MapBranch } from './map.js'
+import { create as mapCreate, load as mapLoad, MapLeaf, MapBranch } from './map.js'
 import { simpleCompare } from './utils.js'
 
 const compare = simpleCompare
@@ -12,9 +12,16 @@ class SparseArrayBranch extends MapBranch {
 const LeafClass = SparseArrayLeaf
 const BranchClass = SparseArrayBranch
 
-const create = (opts) => {
-  opts = { ...opts, LeafClass, BranchClass, compare }
+const defaults = { LeafClass, BranchClass, compare }
+
+const create = opts => {
+  opts = { ...defaults, ...opts }
   return mapCreate(opts)
 }
 
-export { create, SparseArrayBranch, SparseArrayLeaf }
+const load = opts => {
+  opts = { ...defaults, ...opts }
+  return mapLoad(opts)
+}
+
+export { create, load, SparseArrayBranch, SparseArrayLeaf }
