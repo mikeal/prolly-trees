@@ -48,6 +48,16 @@ class Column extends SQLBase {
   static create (schema) {
     return new Column({ schema, index: null })
   }
+  static from (cid, { get, cache }) {
+    const create = async (block) => {
+      let { schema, index } = block.value
+      if (index !== null) {
+        index = await loadDBIndex({ cid: index, cache, get, ...mf })
+      }
+      return new Column({ index, schema, get, cache, block })
+    }
+    return getNode(cid, get, cache, create)
+  }
 }
 
 class Table extends SQLBase {
@@ -69,7 +79,7 @@ class Table extends SQLBase {
   static from (cid, { get, cache }) {
     const create = async (block) => {
       let { columns, rows } = block.value
-      const promises = entries(tables).map(cid => Column.from(cid, { get, cache }))
+      const promises = columns.map(cid => Column.from(cid, { get, cache }))
       if (rows !== null) {
         rows = loadSparseArray({ cid: rows, cache, get, ...mf })
       }

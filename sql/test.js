@@ -2,10 +2,13 @@
 import { sql, Database } from './index.js'
 import { nocache } from '../src/cache.js'
 import { bf } from '../src/utils.js'
+import { deepStrictEqual as same } from 'assert'
 
 const chunker = bf(3)
 
 const cache = nocache
+
+const { keys, entries } = Object
 
 const storage = () => {
   const blocks = {}
@@ -40,6 +43,8 @@ describe('sql', () => {
     }
     const opts = { get: store.get, cache }
     const db = await Database.from(last.cid, opts)
+    same(entries(db.tables).length, 1)
+    same(db.tables.Persons.rows, null)
   })
 
   it('create twice', async () => {
