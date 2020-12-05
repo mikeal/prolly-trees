@@ -23,7 +23,7 @@ const storage = () => {
   return { get, put, blocks }
 }
 
-const q = `CREATE TABLE Persons (
+const createPersons = `CREATE TABLE Persons (
   PersonID int,
   LastName varchar(255),
   FirstName varchar(255),
@@ -31,22 +31,38 @@ const q = `CREATE TABLE Persons (
   City varchar(255)
 )`
 
+const createPersons2 = `CREATE TABLE Persons2 (
+  PersonID int,
+  LastName varchar(255),
+  FirstName varchar(255),
+  Address varchar(255),
+  City varchar(255)
+)`
+
+const loadFixture = async (q, database=Database.create(), store=storage()) => {
+  const iter = sql(q, { database })
+
+  let last
+  for await (const block of iter) {
+    await store.put(block)
+    last = block
+  }
+  const opts = { get: store.get, cache }
+  const db = await Database.from(last.cid, opts)
+  return { database: db, store, cache, root: last.cid }
+}
+
 describe('sql', () => {
   it('basic create', async () => {
-    const iter = sql(q, { database: Database.create() })
-    const store = storage()
-
-    let last
-    for await (const block of iter) {
-      await store.put(block)
-      last = block
-    }
-    const opts = { get: store.get, cache }
-    const db = await Database.from(last.cid, opts)
+    const { database: db } = await loadFixture(createPersons)
     same(entries(db.tables).length, 1)
     same(db.tables.Persons.rows, null)
   })
 
   it('create twice', async () => {
+    const { database, store } = await loadFixture(createPersons)
+    const db = (await loadFixture(createPersons2, database, store)).database
+    same(entries(db.tables).length, 2)
+    same(db.tables.Persons2.rows, null)
   })
 })

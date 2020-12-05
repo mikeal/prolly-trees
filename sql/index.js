@@ -87,6 +87,7 @@ class Table extends SQLBase {
       rows = await rows
       return new Table({ columns, rows, get, cache, block })
     }
+    if (!cid) throw new Error('here')
     return getNode(cid, get, cache, create)
   }
 }
@@ -119,7 +120,7 @@ class Database extends SQLBase {
   }
   async encodeNode () {
     const promises = entries(this.tables).map(async ([ key, value ]) => {
-      return [ key, await value.encode.address ]
+      return [ key, await value.address ]
     })
     const tables = fromEntries(await Promise.all(promises))
     return { tables }
