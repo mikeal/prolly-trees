@@ -2,6 +2,7 @@ import sql from 'node-sql-parser'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import * as codec from '@ipld/dag-cbor'
 import { encode as encoder, decode as decoder } from 'multiformats/block'
+import { create as createSparseArray } from '../src/sparse-array.js'
 
 const mf = { codec, hasher }
 
@@ -60,6 +61,46 @@ class Column extends SQLBase {
   }
 }
 
+const validate = (schema, val) => {
+  const { dataType, length } = schema.definition
+  const { type, value } = val
+  if (value.length > length) throw new Error('Schema validation: value too long')
+  if (type === 'string' && dataType === 'VARCHAR') return true
+  if (type === 'number' && dataType === 'INT') return true
+  console.log({schema, val})
+  throw new Error('Not implemented')
+}
+
+const tableInsert = async function * (table, { database }) {
+  if (ast.columns !== null) throw new Error('Not implemented')
+  const { values } = ast
+  const inserts = []
+  const schemas = this.columns.map(col => col.schema)
+  for (const { type, value } of values) {
+    const row = []
+    if (type !== 'expr_list') throw new Error('Not implemented')
+    for (let i = 0; i < value.length; i++) {
+      const schema = schemas[i]
+      const val = value[i]
+      validate(schema, val)
+      row.push(val.value)
+    }
+    inserts.push(row)
+  }
+  const { get, cache } = database
+  const opts = { get, cache, ...mf }
+  if (this.rows === null) {
+    let i = 1
+    const list = inserts.map(value => ({ key: i++, value }))
+    let last
+    for (const block of createSparseArray({ list, ..opts })) {
+      yield block
+      last = block
+    }
+    throw new Error('left here, need to write indexes')
+  }
+}
+
 class Table extends SQLBase {
   constructor ({ rows, columns, ...opts }) {
     super(opts)
@@ -70,6 +111,9 @@ class Table extends SQLBase {
     const columns = await Promise.all(this.columns.map(column => column.address))
     const rows = this.rows === null ? null : await this.rows.address
     return { columns, rows }
+  }
+  insert (ast, opts) {
+    return tableInsert(table, opts)
   }
   static create (columnSchemas) {
     const columns = columnSchemas.map(schema => Column.create(schema))
@@ -83,7 +127,7 @@ class Table extends SQLBase {
       if (rows !== null) {
         rows = loadSparseArray({ cid: rows, cache, get, ...mf })
       }
-      columns = fromEntries(await Promise.all(promises))
+      columns = await Promise.all(promises)
       rows = await rows
       return new Table({ columns, rows, get, cache, block })
     }
@@ -139,6 +183,9 @@ class Database extends SQLBase {
     }
     return getNode(cid, get, cache, create)
   }
+  sql (q, opts) {
+    return sqlQuery(q, { ...opts, database: this })
+  }
 }
 
 const parse = query => (new sql.Parser()).astify(query)
@@ -151,7 +198,17 @@ const exec = (ast, { database }) => {
       if (!database) throw new Error('No database to create table in')
       return database.createTable(ast)
     }
+    throw new Error('Not implemented')
   }
+  if (type === 'insert') {
+    if (!database) throw new Error('No database to create table in')
+    const [ { db, table: name } ] = ast.table
+    if (db !== null) throw new Error('Not implemented')
+    const table = database.tables[name]
+    if (!table) throw new Error(`Missing table '${name}'`)
+    return table.insert(ast, { database })
+  }
+  throw new Error('Not implemented')
 }
 
 const sqlQuery = (q, opts) => exec(parse(q), opts)

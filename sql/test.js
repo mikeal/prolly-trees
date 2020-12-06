@@ -39,8 +39,11 @@ const createPersons2 = `CREATE TABLE Persons2 (
   City varchar(255)
 )`
 
-const loadFixture = async (q, database=Database.create(), store=storage()) => {
-  const iter = sql(q, { database })
+const insertOnlyId = `INSERT INTO Persons (PersonID) VALUES (4006)`
+const insertFullRow = `INSERT INTO Persons VALUES (12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco')`
+
+const runSQL = async (q, database=Database.create(), store=storage()) => {
+  const iter = database.sql(q)
 
   let last
   for await (const block of iter) {
@@ -52,17 +55,56 @@ const loadFixture = async (q, database=Database.create(), store=storage()) => {
   return { database: db, store, cache, root: last.cid }
 }
 
+const verifyPersonTable = table => {
+  const expected = [
+    { name: 'PersonID',
+      dataType: 'INT'
+    },
+    { name: 'LastName',
+      dataType: 'VARCHAR',
+      length: 255
+    },
+    { name: 'FirstName',
+      dataType: 'VARCHAR',
+      length: 255
+    },
+    { name: 'Address',
+      dataType: 'VARCHAR',
+      length: 255
+    },
+    { name: 'City',
+      dataType: 'VARCHAR',
+      length: 255
+    }
+  ]
+  for (const column of table.columns) {
+    const { name, dataType, length } = expected.shift()
+    same(column.name, name)
+    same(column.schema.definition.dataType, dataType)
+    same(column.schema.definition.length, length)
+  }
+}
+
 describe('sql', () => {
   it('basic create', async () => {
-    const { database: db } = await loadFixture(createPersons)
+    const { database: db } = await runSQL(createPersons)
     same(entries(db.tables).length, 1)
     same(db.tables.Persons.rows, null)
+    verifyPersonTable(db.tables.Persons)
   })
 
   it('create twice', async () => {
-    const { database, store } = await loadFixture(createPersons)
-    const db = (await loadFixture(createPersons2, database, store)).database
+    const { database, store } = await runSQL(createPersons)
+    const db = (await runSQL(createPersons2, database, store)).database
     same(entries(db.tables).length, 2)
     same(db.tables.Persons2.rows, null)
+    verifyPersonTable(db.tables.Persons)
+    verifyPersonTable(db.tables.Persons2)
+  })
+
+  it('insert initial row', async () => {
+    const { database, store } = await runSQL(createPersons)
+    const { database: db } = await runSQL(insertFullRow, database, store)
+
   })
 })
