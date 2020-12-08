@@ -1,8 +1,8 @@
 /* globals describe, it */
 import { sql, Database } from './index.js'
 import { nocache } from '../src/cache.js'
-import { bf } from '../src/utils.js'
 import { deepStrictEqual as same } from 'assert'
+import { bf } from '../src/utils.js'
 
 const chunker = bf(3)
 
@@ -43,7 +43,7 @@ const insertOnlyId = `INSERT INTO Persons (PersonID) VALUES (4006)`
 const insertFullRow = `INSERT INTO Persons VALUES (12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco')`
 
 const runSQL = async (q, database=Database.create(), store=storage()) => {
-  const iter = database.sql(q)
+  const iter = database.sql(q, { chunker })
 
   let last
   for await (const block of iter) {
@@ -105,6 +105,5 @@ describe('sql', () => {
   it('insert initial row', async () => {
     const { database, store } = await runSQL(createPersons)
     const { database: db } = await runSQL(insertFullRow, database, store)
-
   })
 })

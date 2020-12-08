@@ -58,4 +58,4 @@ const load = opts => {
   return mapLoad(opts)
 }
 
-export { create, DBIndexBranch, DBIndexLeaf }
+export { create, load, DBIndexBranch, DBIndexLeaf }

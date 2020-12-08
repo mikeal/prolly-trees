@@ -2,7 +2,8 @@ import sql from 'node-sql-parser'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import * as codec from '@ipld/dag-cbor'
 import { encode as encoder, decode as decoder } from 'multiformats/block'
-import { create as createSparseArray } from '../src/sparse-array.js'
+import { create as createSparseArray, load as loadSparseArray } from '../src/sparse-array.js'
+import { create as createDBIndex, load as loadDBIndex } from '../src/db-index.js'
 
 const mf = { codec, hasher }
 
@@ -71,11 +72,11 @@ const validate = (schema, val) => {
   throw new Error('Not implemented')
 }
 
-const tableInsert = async function * (table, { database }) {
+const tableInsert = async function * (table, ast, { database, chunker }) {
   if (ast.columns !== null) throw new Error('Not implemented')
   const { values } = ast
   const inserts = []
-  const schemas = this.columns.map(col => col.schema)
+  const schemas = table.columns.map(col => col.schema)
   for (const { type, value } of values) {
     const row = []
     if (type !== 'expr_list') throw new Error('Not implemented')
@@ -88,22 +89,68 @@ const tableInsert = async function * (table, { database }) {
     inserts.push(row)
   }
   const { get, cache } = database
-  const opts = { get, cache, ...mf }
-  if (this.rows === null) {
+  const opts = { chunker, get, cache, ...mf }
+  if (table.rows === null) {
     let i = 1
     const list = inserts.map(value => ({ key: i++, value }))
-    let last
-    for (const block of createSparseArray({ list, ..opts })) {
-      yield block
-      last = block
+    let rows
+
+    for await (const node of createSparseArray({ list, ...opts })) {
+      yield node.block
+      rows = node
     }
-    throw new Error('left here, need to write indexes')
+    let blocks = []
+    const writeIndex = async (column, i) => {
+      const entries = []
+      for (const { key, value } of list) {
+        let val
+        if (Array.isArray(value)) {
+          val = value[i]
+        } else {
+          // TODO: use objects for entries that are missing all column entries
+          throw new Error('Not Supported')
+        }
+        entries.push({ key: [ val, key ], value })
+      }
+      let index
+      for await (const node of createDBIndex({ list: entries, ...opts })) {
+        blocks.push(node.block)
+        index = node
+      }
+      return index
+    }
+    const promises = table.columns.map((...args) => writeIndex(...args))
+    const pending = new Set(promises)
+    promises.forEach(p => p.then(() => pending.delete(p)))
+    while (pending.size) {
+      await Promise.race([...pending])
+      yield * blocks
+      blocks = []
+    }
+    const indexes = await Promise.all(promises.map(p => p.then(index => index.address)))
+    const node = await table.encodeNode()
+    node.rows = await rows.address
+    node.columns = []
+    const columns = await Promise.all(table.columns.map(c => c.encodeNode()))
+    while (columns.length) {
+      const col = columns.shift()
+      col.index = await indexes.shift()
+      const block = await encode(col)
+      yield block
+      node.columns.push(block.cid)
+    }
+    const newTable = await encode(node)
+    yield newTable
+    const dbNode = await database.encodeNode()
+    dbNode.tables[table.name] = newTable.cid
+    yield encode(dbNode)
   }
 }
 
 class Table extends SQLBase {
-  constructor ({ rows, columns, ...opts }) {
+  constructor ({ name, rows, columns, ...opts }) {
     super(opts)
+    this.name = name
     this.rows = rows
     this.columns = columns
   }
@@ -113,14 +160,14 @@ class Table extends SQLBase {
     return { columns, rows }
   }
   insert (ast, opts) {
-    return tableInsert(table, opts)
+    return tableInsert(this, ast, opts)
   }
   static create (columnSchemas) {
     const columns = columnSchemas.map(schema => Column.create(schema))
     const table = new Table({ rows: null, columns })
     return table
   }
-  static from (cid, { get, cache }) {
+  static from (cid, name, { get, cache }) {
     const create = async (block) => {
       let { columns, rows } = block.value
       const promises = columns.map(cid => Column.from(cid, { get, cache }))
@@ -129,7 +176,7 @@ class Table extends SQLBase {
       }
       columns = await Promise.all(promises)
       rows = await rows
-      return new Table({ columns, rows, get, cache, block })
+      return new Table({ name, columns, rows, get, cache, block })
     }
     if (!cid) throw new Error('here')
     return getNode(cid, get, cache, create)
@@ -176,7 +223,7 @@ class Database extends SQLBase {
     const create = async (block) => {
       let { tables } = block.value
       const promises = entries(tables).map(async ([key, cid]) => {
-        return [ key, await Table.from(cid, { get, cache }) ]
+        return [ key, await Table.from(cid, key, { get, cache }) ]
       })
       tables = fromEntries(await Promise.all(promises))
       return new Database({ tables, get, cache, block })
@@ -190,7 +237,7 @@ class Database extends SQLBase {
 
 const parse = query => (new sql.Parser()).astify(query)
 
-const exec = (ast, { database }) => {
+const exec = (ast, { database, chunker }) => {
   const { keyword, type } = ast
   if (keyword === 'table') {
     if (type === 'create') {
@@ -206,7 +253,7 @@ const exec = (ast, { database }) => {
     if (db !== null) throw new Error('Not implemented')
     const table = database.tables[name]
     if (!table) throw new Error(`Missing table '${name}'`)
-    return table.insert(ast, { database })
+    return table.insert(ast, { database, chunker })
   }
   throw new Error('Not implemented')
 }
