@@ -3,6 +3,8 @@ import { sql, Database } from './index.js'
 import { nocache } from '../src/cache.js'
 import { deepStrictEqual as same } from 'assert'
 import { bf } from '../src/utils.js'
+import { SparseArrayLeaf } from '../src/sparse-array.js'
+import { DBIndexLeaf } from '../src/db-index.js'
 
 const chunker = bf(3)
 
@@ -50,7 +52,7 @@ const runSQL = async (q, database=Database.create(), store=storage()) => {
     await store.put(block)
     last = block
   }
-  const opts = { get: store.get, cache }
+  const opts = { get: store.get, cache, chunker }
   const db = await Database.from(last.cid, opts)
   return { database: db, store, cache, root: last.cid }
 }
@@ -105,5 +107,18 @@ describe('sql', () => {
   it('insert initial row', async () => {
     const { database, store } = await runSQL(createPersons)
     const { database: db } = await runSQL(insertFullRow, database, store)
+    const table = db.tables.Persons
+    same(table.rows instanceof SparseArrayLeaf, true)
+    for (const column of table.columns) {
+      same(column.index instanceof DBIndexLeaf, true)
+    }
+  })
+
+  it('basic select', async () => {
+    const { database, store } = await runSQL(createPersons)
+    const { database: db } = await runSQL(insertFullRow, database, store)
+    const result = db.sql('SELECT * FROM Persons')
+    const all = await result.all()
+    same(all, [ [ 12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco' ] ])
   })
 })

@@ -50,11 +50,11 @@ class Column extends SQLBase {
   static create (schema) {
     return new Column({ schema, index: null })
   }
-  static from (cid, { get, cache }) {
+  static from (cid, { get, cache, chunker }) {
     const create = async (block) => {
       let { schema, index } = block.value
       if (index !== null) {
-        index = await loadDBIndex({ cid: index, cache, get, ...mf })
+        index = await loadDBIndex({ cid: index, get, cache, chunker, ...mf })
       }
       return new Column({ index, schema, get, cache, block })
     }
@@ -72,8 +72,47 @@ const validate = (schema, val) => {
   throw new Error('Not implemented')
 }
 
+class Row {
+  constructor ({ block, table }) {
+    this.block = block
+    this.value = block.value
+    this.props = table.columns.map(col => col.schema)
+  }
+  get address () {
+    return this.block.cid
+  }
+  getIndex (i) {
+    return this.value[i]
+  }
+  get (columnName) {
+    throw new Error('not implemented')
+  }
+  columns (query) {
+    if (query === '*') {
+      return this.toArray()
+    }
+  }
+  toArray () {
+    if (Array.isArray(this.value)) {
+      return this.value
+    } else {
+      throw new Error('Unsupported')
+    }
+  }
+  toObject () {
+    if (Array.isArray(this.value)) {
+      const props = [...this.props()]
+      console.log({props})
+      throw new Error('here')
+    } else {
+      throw new Error('Unsupported')
+    }
+  }
+}
+
 const tableInsert = async function * (table, ast, { database, chunker }) {
   if (ast.columns !== null) throw new Error('Not implemented')
+  const { get, cache } = database
   const { values } = ast
   const inserts = []
   const schemas = table.columns.map(col => col.schema)
@@ -86,13 +125,16 @@ const tableInsert = async function * (table, ast, { database, chunker }) {
       validate(schema, val)
       row.push(val.value)
     }
-    inserts.push(row)
+    const block = await encode(row)
+    yield block
+    const _row = new Row({ block, table })
+    cache.set(_row.address, _row)
+    inserts.push({ block, row: _row})
   }
-  const { get, cache } = database
   const opts = { chunker, get, cache, ...mf }
   if (table.rows === null) {
     let i = 1
-    const list = inserts.map(value => ({ key: i++, value }))
+    const list = inserts.map(({ block: { cid }, row }) => ({ key: i++, value: cid, row }))
     let rows
 
     for await (const node of createSparseArray({ list, ...opts })) {
@@ -102,15 +144,9 @@ const tableInsert = async function * (table, ast, { database, chunker }) {
     let blocks = []
     const writeIndex = async (column, i) => {
       const entries = []
-      for (const { key, value } of list) {
-        let val
-        if (Array.isArray(value)) {
-          val = value[i]
-        } else {
-          // TODO: use objects for entries that are missing all column entries
-          throw new Error('Not Supported')
-        }
-        entries.push({ key: [ val, key ], value })
+      for (const { key, value, row } of list) {
+        const val = row.getIndex(i)
+        entries.push({ key: [ val, key ], row })
       }
       let index
       for await (const node of createDBIndex({ list: entries, ...opts })) {
@@ -167,18 +203,17 @@ class Table extends SQLBase {
     const table = new Table({ rows: null, columns })
     return table
   }
-  static from (cid, name, { get, cache }) {
+  static from (cid, name, { get, cache, chunker }) {
     const create = async (block) => {
       let { columns, rows } = block.value
-      const promises = columns.map(cid => Column.from(cid, { get, cache }))
+      const promises = columns.map(cid => Column.from(cid, { get, cache, chunker }))
       if (rows !== null) {
-        rows = loadSparseArray({ cid: rows, cache, get, ...mf })
+        rows = loadSparseArray({ cid: rows, cache, get, chunker, ...mf })
       }
       columns = await Promise.all(promises)
       rows = await rows
       return new Table({ name, columns, rows, get, cache, block })
     }
-    if (!cid) throw new Error('here')
     return getNode(cid, get, cache, create)
   }
 }
@@ -219,11 +254,11 @@ class Database extends SQLBase {
   static create (opts) {
     return new Database({ tables: {}, ...opts })
   }
-  static async from (cid, { get, cache }) {
+  static async from (cid, { get, cache, chunker }) {
     const create = async (block) => {
       let { tables } = block.value
       const promises = entries(tables).map(async ([key, cid]) => {
-        return [ key, await Table.from(cid, key, { get, cache }) ]
+        return [ key, await Table.from(cid, key, { get, cache, chunker }) ]
       })
       tables = fromEntries(await Promise.all(promises))
       return new Database({ tables, get, cache, block })
@@ -236,6 +271,77 @@ class Database extends SQLBase {
 }
 
 const parse = query => (new sql.Parser()).astify(query)
+
+const notsupported = select => {
+  const keys = [
+    'options',
+    'distinct',
+    'where',
+    'groupby',
+    'having',
+    'orderby',
+    'limit',
+    'for_update'
+  ]
+  keys.forEach(key => {
+    if (select[key] !== null) throw new Error(`Not supported "${key}"`)
+  })
+}
+
+const runSelect = async function * (select) {
+  for await (const { entry, table } of select.where()) {
+    const result = await select.columns(entry, table)
+    yield { entry, table, ...result }
+  }
+}
+
+const runWhere = async function * (select) {
+  const tables = select.ast.from.map(({ table }) => select.db.tables[table])
+  if (select.ast.where === null) {
+    for (const table of tables) {
+      for await (const entry of table.rows.getAllEntries()) {
+        yield { entry, table }
+      }
+    }
+  }
+}
+
+const filterResults = async function * (results, name) {
+  for await (const r of results) {
+    yield r[name]
+  }
+}
+
+class Select {
+  constructor (db, ast) {
+    notsupported(ast)
+    this.db = db
+    this.ast = ast
+  }
+  async columns (entry, table) {
+    const { value } = entry
+    const { get, cache } = this.db
+    const create = block => new Row({ block, table })
+    const row = await getNode(value, get, cache, create)
+    return { row, columns: row.columns(this.ast.columns) }
+  }
+  where () {
+    return runWhere(this)
+  }
+  run () {
+    return runSelect(this)
+  }
+  each () {
+    return filterResults(this.run(), 'columns')
+  }
+  async all () {
+    const results = []
+    for await (const result of this.each()) {
+      results.push(result)
+    }
+    return results
+  }
+}
 
 const exec = (ast, { database, chunker }) => {
   const { keyword, type } = ast
@@ -255,11 +361,13 @@ const exec = (ast, { database, chunker }) => {
     if (!table) throw new Error(`Missing table '${name}'`)
     return table.insert(ast, { database, chunker })
   }
+  if (type === 'select') {
+    return new Select(database, ast)
+  }
   throw new Error('Not implemented')
 }
 
 const sqlQuery = (q, opts) => exec(parse(q), opts)
 
 export { Database, Table, Column, exec, sqlQuery as sql }
-
 
