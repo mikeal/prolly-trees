@@ -85,11 +85,29 @@ class Row {
     return this.value[i]
   }
   get (columnName) {
-    throw new Error('not implemented')
+    if (Array.isArray(this.value)) {
+      // TODO: optimize this find to use only a single iteration
+      const i = this.props.findIndex(p => p.column.column === columnName)
+      if (i === -1) throw new Error(`No column named "${columnName}"`)
+      return this.value[i]
+    } else {
+      return this.value[columnName]
+    }
   }
   columns (query) {
     if (query === '*') {
       return this.toArray()
+    } else if (Array.isArray(query)) {
+      const result = []
+      for (const { expr, as } of query) {
+        if (as !== null) throw new Error('Not Implmented')
+        if (expr.type !== 'column_ref') throw new Error('Not Implmented')
+        if (expr.table !== null) throw new Error('Not Implemented')
+        result.push(this.get(expr.column))
+      }
+      return result
+    } else {
+      throw new Error('Not Implemented')
     }
   }
   toArray () {

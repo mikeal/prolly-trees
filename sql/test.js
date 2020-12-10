@@ -114,11 +114,20 @@ describe('sql', () => {
     }
   })
 
-  it('basic select', async () => {
+  it('select all columns', async () => {
     const { database, store } = await runSQL(createPersons)
     const { database: db } = await runSQL(insertFullRow, database, store)
     const result = db.sql('SELECT * FROM Persons')
     const all = await result.all()
     same(all, [ [ 12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco' ] ])
   })
+
+  it('select two columns', async () => {
+    const { database, store } = await runSQL(createPersons)
+    const { database: db } = await runSQL(insertFullRow, database, store)
+    const result = db.sql('SELECT FirstName, LastName FROM Persons')
+    const all = await result.all()
+    same(all, [ [ 'Mikeal', 'Rogers' ] ])
+  })
+
 })
