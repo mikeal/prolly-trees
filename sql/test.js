@@ -4,7 +4,7 @@ import { nocache } from '../src/cache.js'
 import { deepStrictEqual as same } from 'assert'
 import { bf } from '../src/utils.js'
 import { SparseArrayLeaf } from '../src/sparse-array.js'
-import { DBIndexLeaf } from '../src/db-index.js'
+import { DBIndexLeaf, DBIndexBranch } from '../src/db-index.js'
 
 const chunker = bf(3)
 
@@ -43,6 +43,7 @@ const createPersons2 = `CREATE TABLE Persons2 (
 
 const insertOnlyId = `INSERT INTO Persons (PersonID) VALUES (4006)`
 const insertFullRow = `INSERT INTO Persons VALUES (12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco')`
+const insertTwoRows = insertFullRow + `, (13, 'Rogers', 'NotMikeal', '241 AVB', 'San Francisco')`
 
 const runSQL = async (q, database=Database.create(), store=storage()) => {
   const iter = database.sql(q, { chunker })
@@ -114,12 +115,33 @@ describe('sql', () => {
     }
   })
 
+  const onlyFirstRow = [ [ 12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco' ] ]
+  const onlySecondRow = [ [ 13, 'Rogers', 'NotMikeal', '241 AVB', 'San Francisco'] ]
+
   it('select all columns', async () => {
     const { database, store } = await runSQL(createPersons)
     const { database: db } = await runSQL(insertFullRow, database, store)
     const result = db.sql('SELECT * FROM Persons')
     const all = await result.all()
-    same(all, [ [ 12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco' ] ])
+    same(all, onlyFirstRow)
+  })
+
+  const twoRowExpected = [
+    onlyFirstRow[0],
+    onlySecondRow[0]
+  ]
+
+  it('insert two rows and select', async () => {
+    const { database, store } = await runSQL(createPersons)
+    const { database: db } = await runSQL(insertTwoRows, database, store)
+    const table = db.tables.Persons
+    same(table.rows instanceof SparseArrayLeaf, true)
+    for (const column of table.columns) {
+      same(column.index instanceof DBIndexLeaf || column.index instanceof DBIndexBranch, true)
+    }
+    const result = db.sql('SELECT * FROM Persons')
+    const all = await result.all()
+    same(all, twoRowExpected)
   })
 
   it('select two columns', async () => {
@@ -128,6 +150,78 @@ describe('sql', () => {
     const result = db.sql('SELECT FirstName, LastName FROM Persons')
     const all = await result.all()
     same(all, [ [ 'Mikeal', 'Rogers' ] ])
+  })
+
+  it('select * where (string comparison)', async () => {
+    const { database, store } = await runSQL(createPersons)
+    const { database: db } = await runSQL(insertTwoRows, database, store)
+    let result = db.sql('SELECT * FROM Persons WHERE FirstName="Mikeal"')
+    let all = await result.all()
+    same(all, onlyFirstRow)
+    result = db.sql('SELECT * FROM Persons WHERE FirstName="NotMikeal"')
+    all = await result.all()
+    same(all, onlySecondRow)
+  })
+
+  it('select * where (string comparison AND)', async () => {
+    const { database, store } = await runSQL(createPersons)
+    const { database: db } = await runSQL(insertTwoRows, database, store)
+    let result = db.sql('SELECT * FROM Persons WHERE FirstName="Mikeal" AND LastName="Rogers"')
+    let all = await result.all()
+    same(all, onlyFirstRow)
+    result = db.sql('SELECT * FROM Persons WHERE FirstName="NotMikeal" AND LastName="Rogers"')
+    all = await result.all()
+    same(all, onlySecondRow)
+    result = db.sql('SELECT * FROM Persons WHERE FirstName="Mikeal" AND LastName="NotRogers"')
+    all = await result.all()
+    same(all, [])
+    result = db.sql('SELECT * FROM Persons WHERE FirstName="NotMikeal" AND LastName="NotRogers"')
+    all = await result.all()
+    same(all, [])
+  })
+
+  it('select * where (string comparison OR)', async () => {
+    const { database, store } = await runSQL(createPersons)
+    const { database: db } = await runSQL(insertTwoRows, database, store)
+    let result = db.sql('SELECT * FROM Persons WHERE FirstName="Mikeal" OR LastName="NotRogers"')
+    let all = await result.all()
+    same(all, onlyFirstRow)
+    result = db.sql('SELECT * FROM Persons WHERE FirstName="NotMikeal" OR LastName="NotRogers"')
+    all = await result.all()
+    same(all, onlySecondRow)
+    result = db.sql('SELECT * FROM Persons WHERE FirstName="XMikeal" OR LastName="XRogers"')
+    all = await result.all()
+    same(all, [])
+  })
+
+  it('select * where (string comparison AND 3x)', async () => {
+    const { database, store } = await runSQL(createPersons)
+    const { database: db } = await runSQL(insertTwoRows, database, store)
+    const pre = 'SELECT * FROM Persons WHERE '
+    let result = db.sql(pre + 'FirstName="Mikeal" AND LastName="Rogers" AND City="San Francisco"')
+    let all = await result.all()
+    same(all, onlyFirstRow)
+    result = db.sql(pre + 'FirstName="NotMikeal" AND LastName="Rogers" AND City="San Francisco"')
+    all = await result.all()
+    same(all, onlySecondRow)
+    result = db.sql(pre + 'FirstName="XMikeal" OR LastName="XRogers"')
+    all = await result.all()
+    same(all, [])
+  })
+
+  it('select * where (string comparison OR 3x)', async () => {
+    const { database, store } = await runSQL(createPersons)
+    const { database: db } = await runSQL(insertTwoRows, database, store)
+    const pre = 'SELECT * FROM Persons WHERE '
+    let result = db.sql(pre + 'FirstName="X" OR LastName="X" OR City="San Francisco"')
+    let all = await result.all()
+    same(all, twoRowExpected)
+    result = db.sql(pre + 'FirstName="X" OR LastName="X" OR City="San Francisco"')
+    all = await result.all()
+    same(all, twoRowExpected)
+    result = db.sql(pre + 'FirstName="XMikeal" OR LastName="XRogers" OR City="X"')
+    all = await result.all()
+    same(all, [])
   })
 
 })

@@ -68,8 +68,7 @@ const validate = (schema, val) => {
   if (value.length > length) throw new Error('Schema validation: value too long')
   if (type === 'string' && dataType === 'VARCHAR') return true
   if (type === 'number' && dataType === 'INT') return true
-  console.log({schema, val})
-  throw new Error('Not implemented')
+  throw new Error('Not Implemented')
 }
 
 class Row {
@@ -118,10 +117,10 @@ class Row {
     }
   }
   toObject () {
+    throw new Error('no implemented')
+    // this is not finished
     if (Array.isArray(this.value)) {
       const props = [...this.props()]
-      console.log({props})
-      throw new Error('here')
     } else {
       throw new Error('Unsupported')
     }
@@ -164,7 +163,7 @@ const tableInsert = async function * (table, ast, { database, chunker }) {
       const entries = []
       for (const { key, value, row } of list) {
         const val = row.getIndex(i)
-        entries.push({ key: [ val, key ], row })
+        entries.push({ key: [ val, key ], row, value: row.address })
       }
       let index
       for await (const node of createDBIndex({ list: entries, ...opts })) {
@@ -198,6 +197,53 @@ const tableInsert = async function * (table, ast, { database, chunker }) {
     const dbNode = await database.encodeNode()
     dbNode.tables[table.name] = newTable.cid
     yield encode(dbNode)
+  }
+}
+
+const whereIter = async function * (w) {
+  }
+
+class Where {
+  constructor (db, ast, table) {
+    this.db = db
+    this.ast = ast
+    this.table = table
+  }
+  async all () {
+    const where = this.ast
+    const { table, db } = this
+    if (where.type !== 'binary_expr') throw new Error('Not Implemented')
+    if (where.left.table) throw new Error('Not Implemented')
+
+    let results
+    if (where.operator === 'AND' || where.operator === 'OR') {
+      const left = new Where(db, where.left, table)
+      const right = new Where(db, where.right, table)
+      const [ ll, rr ] = await Promise.all([ left.asMap(), right.asMap() ])
+      if (where.operator === 'OR') {
+        const all = new Map([ ...ll.entries(), ...rr.entries() ])
+        results = [ ...all.keys() ].sort().map(k => ({ key: k, value: all.get(k) }))
+      } else {
+        results = [ ...ll.keys() ].filter(k => rr.has(k)).map(k => {
+          return { key: k, value: ll.get(k) }
+        })
+      }
+    } else if (where.operator === '=') {
+      const { column } = where.left
+      const { value } = where.right
+      const { index } = table.columns.find(c => c.name === column)
+      results = await index.getRangeEntries([value, 0], [value, Infinity])
+    } else {
+      throw new Error('Not Implemented')
+    }
+    return results
+  }
+  async asMap () {
+    const results = await this.all()
+    return new Map(results.map(r => {
+      if (Array.isArray(r.key)) return [ r.key[1], r.value ]
+      return [ r.key, r.value ]
+    }))
   }
 }
 
@@ -294,7 +340,6 @@ const notsupported = select => {
   const keys = [
     'options',
     'distinct',
-    'where',
     'groupby',
     'having',
     'orderby',
@@ -320,6 +365,12 @@ const runWhere = async function * (select) {
       for await (const entry of table.rows.getAllEntries()) {
         yield { entry, table }
       }
+    }
+  } else {
+    for (const table of tables) {
+      const w = new Where(select.db, select.ast.where, table)
+      const results = await w.all()
+      yield * results.map(entry => ({ entry, table }))
     }
   }
 }
