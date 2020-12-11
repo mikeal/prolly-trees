@@ -407,7 +407,6 @@ const notsupported = select => {
     'distinct',
     'groupby',
     'having',
-    'orderby',
     'limit',
     'for_update'
   ]
@@ -465,15 +464,28 @@ class Select {
   run () {
     return runSelect(this)
   }
-  each () {
-    return filterResults(this.run(), 'columns')
-  }
-  async all () {
-    const results = []
-    for await (const result of this.each()) {
+  async _all () {
+    let results = []
+    for await (const result of this.run()) {
       results.push(result)
     }
+    if (this.ast.orderby) {
+      results = results.sort((a, b) => {
+        for (const order of this.ast.orderby) {
+          if (order.expr.type !== 'column_ref') throw new Error('Not Implemented')
+          const { column } = order.expr
+          const [ aa, bb ] = [ a.row.get(column), b.row.get(column) ]
+          if (aa < bb) return order.type === 'ASC' ? -1 : 1
+          if (aa > bb) return order.type === 'ASC' ? 1 : -1
+        }
+        return 0
+      })
+    }
     return results
+  }
+  async all () {
+    const results = await this._all()
+    return results.map(r => r.columns)
   }
 }
 

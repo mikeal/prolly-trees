@@ -295,6 +295,41 @@ describe('sql', () => {
     result = db.sql(pre + 'Name <= "b"')
     all = await result.all()
     same(all, [['a'], ['b']])
+  })
 
+  it('select * where (ORDER BY int)', async () => {
+    const create = `CREATE TABLE Test ( Name varchar(255), Id int )`
+    const { database, store } = await runSQL(create)
+    let i = 0
+    const values = ['a', 'b', 'c', 'd', 'e', 'f'].reverse().map(k => `("${k}", ${i++})`).join(', ')
+    const inserts = `INSERT INTO Test VALUES ${values}`
+    const { database: db } = await runSQL(inserts, database, store)
+    let pre = 'SELECT * FROM Test WHERE '
+    let query = pre + 'Name > "a" AND Name < "f" ORDER BY Id'
+    let result = db.sql(query)
+    let all = await result.all()
+    let expected = [ ['e', 1], ['d', 2], ['c', 3], ['b', 4] ]
+    same(all, expected)
+    result = db.sql(query + ' DESC')
+    all = await result.all()
+    same(all, expected.reverse())
+  })
+
+  it('select * where (ORDER BY string)', async () => {
+    const create = `CREATE TABLE Test ( Name varchar(255), Id int )`
+    const { database, store } = await runSQL(create)
+    let i = 0
+    const values = ['a', 'b', 'c', 'd', 'e', 'f'].reverse().map(k => `("${k}", ${i++})`).join(', ')
+    const inserts = `INSERT INTO Test VALUES ${values}`
+    const { database: db } = await runSQL(inserts, database, store)
+    let pre = 'SELECT * FROM Test WHERE '
+    let query = pre + 'Id > 1 AND Id < 5 ORDER BY Name'
+    let result = db.sql(query)
+    let all = await result.all()
+    let expected = [ ['b', 4], ['c', 3], ['d', 2] ]
+    same(all, expected)
+    result = db.sql(query + ' DESC')
+    all = await result.all()
+    same(all, expected.reverse())
   })
 })
