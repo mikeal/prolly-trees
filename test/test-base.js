@@ -74,13 +74,13 @@ describe('base', () => {
   it('entryList findRange', () => {
     const results = entryListFixture.findRange(2, 5, compare)
     same(results.first, 2)
-    same(results.last, 5)
+    same(results.last, 4)
     let i = 2
     while (results.entries.length) {
       const entry = results.entries.shift()
       same(entry.key, i)
       i++
     }
-    same(i, 6)
+    same(i, 5)
   })
 })

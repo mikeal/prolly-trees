@@ -61,7 +61,7 @@ class EntryList {
     for (let i = entries.length - 1; i > -1; i--) {
       const entry = entries[i]
       const comp = compare(end, entry.key)
-      if (comp > -1) {
+      if (comp > 0) {
         last = i
         break
       }

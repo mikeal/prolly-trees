@@ -107,13 +107,13 @@ describe('map', () => {
       same(keys, comp)
     }
     let entries = await root.getRangeEntries('b', 'z')
-    verify(entries, 1, 9)
+    verify(entries, 1, 8)
     entries = await root.getRangeEntries('', 'zzz')
     verify(entries)
     entries = await root.getRangeEntries('a', 'zz')
-    verify(entries)
+    verify(entries, 0, 9)
     entries = await root.getRangeEntries('a', 'c')
-    verify(entries, 0, 4)
+    verify(entries, 0, 3)
   })
   it('getAllEntries', async () => {
     const { get, put } = storage()
