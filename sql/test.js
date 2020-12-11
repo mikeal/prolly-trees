@@ -253,4 +253,48 @@ describe('sql', () => {
     all = await result.all()
     same(all, [['b'], ['c'], ['d']])
   })
+
+  it('select * where (int range operators)', async () => {
+    const create = `CREATE TABLE Test ( ID int )`
+    const { database, store } = await runSQL(create)
+    const values = [...Array(10).keys()].map(k => `(${k})`).join(', ')
+    const inserts = `INSERT INTO Test VALUES ${values}`
+    const { database: db } = await runSQL(inserts, database, store)
+    let pre = 'SELECT * FROM Test WHERE '
+    let result = db.sql(pre + 'ID < 3')
+    let all = await result.all()
+    same(all, [[0], [1], [2]])
+    result = db.sql(pre + 'ID > 8')
+    all = await result.all()
+    same(all, [[9]])
+    result = db.sql(pre + 'ID <= 2')
+    all = await result.all()
+    same(all, [[0], [1], [2]])
+    result = db.sql(pre + 'ID >= 9')
+    all = await result.all()
+    same(all, [[9]])
+
+  })
+
+  it('select * where (string range operators)', async () => {
+    const create = `CREATE TABLE Test ( Name varchar(255) )`
+    const { database, store } = await runSQL(create)
+    const values = ['a', 'b', 'c', 'd', 'e', 'f'].map(k => `("${k}")`).join(', ')
+    const inserts = `INSERT INTO Test VALUES ${values}`
+    const { database: db } = await runSQL(inserts, database, store)
+    let pre = 'SELECT * FROM Test WHERE '
+    let result = db.sql(pre + 'Name > "e"')
+    let all = await result.all()
+    same(all, [['f']])
+    result = db.sql(pre + 'Name >= "e"')
+    all = await result.all()
+    same(all, [['e'], ['f']])
+    result = db.sql(pre + 'Name < "b"')
+    all = await result.all()
+    same(all, [['a']])
+    result = db.sql(pre + 'Name <= "b"')
+    all = await result.all()
+    same(all, [['a'], ['b']])
+
+  })
 })

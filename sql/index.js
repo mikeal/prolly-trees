@@ -229,6 +229,21 @@ const getRangeQuery = ({ operator, value, right }, column) => {
   }
 }
 
+const absoluteStart = ({ schema: { definition: { dataType, length } } }) => {
+  if (dataType === 'INT') return -1
+  if (dataType === 'VARCHAR') {
+    return [...Array(length).keys()].map(() => '\x00').join('')
+  }
+  throw new Error('Not Implemented')
+}
+const absoluteEnd = ({ schema: { definition: { dataType, length } } }) => {
+  if (dataType === 'INT') return Infinity
+  if (dataType === 'VARCHAR') {
+    return Buffer.from([...Array(length + 1).keys()].map(() => 255)).toString()
+  }
+  throw new Error('Not Implemented')
+}
+
 class Where {
   constructor (db, ast, table) {
     this.db = db
@@ -275,8 +290,11 @@ class Where {
       const { value } = where.right
       results = await index.getRangeEntries([value, 0], [value, Infinity])
     } else if (rangeOperators.has(where.operator)) {
-      // TODO: range operators
-      throw new Error('Not Implemented')
+      const column = table.getColumn(where.left.column)
+      let { start, end } = getRangeQuery(where, column)
+      if (typeof start === 'undefined') start = absoluteStart(column)
+      if (typeof end === 'undefined') end = absoluteEnd(column)
+      results = await column.index.getRangeEntries([ start, 0 ], [ end, 0 ])
     } else {
       throw new Error('Not Implemented')
     }
