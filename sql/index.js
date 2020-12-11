@@ -200,8 +200,34 @@ const tableInsert = async function * (table, ast, { database, chunker }) {
   }
 }
 
-const whereIter = async function * (w) {
+const rangeOperators = new Set(['<', '>', '<=', '>='])
+
+const getRangeQuery = ({ operator, value, right }, column) => {
+  const { dataType } = column.schema.definition
+  let incr
+  if (dataType === 'INT') {
+    incr = 1
+  } else if (dataType === 'VARCHAR') {
+    incr = '\x00'
+  } else {
+    throw new Error('Not Implmented')
   }
+
+  if (typeof value === 'undefined') value = right.value
+
+  if (operator === '>=') {
+    return { start: value }
+  } else if (operator === '<=') {
+    return { end: value + incr }
+  } else if (operator === '>') {
+    return { start: value + incr }
+  } else if (operator === '<') {
+    return { end: value }
+  } else {
+    /* c8 ignore next */
+    throw new Error('Internal Error: invalid operator')
+  }
+}
 
 class Where {
   constructor (db, ast, table) {
@@ -217,6 +243,22 @@ class Where {
 
     let results
     if (where.operator === 'AND' || where.operator === 'OR') {
+      // fast path for range query
+      if (where.left.left.column && where.left.left.column === where.right.left.column) {
+        if (!rangeOperators.has(where.left.operator) ||
+            !rangeOperators.has(where.right.operator)
+           ) {
+          throw new Error('Invalid SQL, must compare same column using >, <, >=, or <=')
+        }
+        const column = table.getColumn(where.left.left.column)
+        const query = { ...getRangeQuery(where.left, column), ...getRangeQuery(where.right, column) }
+        const { start, end } = query
+        if (typeof start === 'undefined' || typeof end === 'undefined') {
+          throw new Error('Invalid operator combination, missing start or end')
+        }
+        return column.index.getRangeEntries([start, 0], [end, 0])
+      }
+
       const left = new Where(db, where.left, table)
       const right = new Where(db, where.right, table)
       const [ ll, rr ] = await Promise.all([ left.asMap(), right.asMap() ])
@@ -229,10 +271,12 @@ class Where {
         })
       }
     } else if (where.operator === '=') {
-      const { column } = where.left
+      const { index } = table.getColumn(where.left.column)
       const { value } = where.right
-      const { index } = table.columns.find(c => c.name === column)
       results = await index.getRangeEntries([value, 0], [value, Infinity])
+    } else if (rangeOperators.has(where.operator)) {
+      // TODO: range operators
+      throw new Error('Not Implemented')
     } else {
       throw new Error('Not Implemented')
     }
@@ -253,6 +297,9 @@ class Table extends SQLBase {
     this.name = name
     this.rows = rows
     this.columns = columns
+  }
+  getColumn (columnName) {
+    return this.columns.find(c => c.name === columnName)
   }
   async encodeNode () {
     const columns = await Promise.all(this.columns.map(column => column.address))
