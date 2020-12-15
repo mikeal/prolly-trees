@@ -131,4 +131,23 @@ describe('map', () => {
     let entries = await root.getAllEntries()
     verify(entries)
   })
+  it('transaction', async () => {
+    const { get, put } = storage()
+    let root
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      root = node
+    }
+    const verify = (entries, start, end) => {
+      const keys = entries.map(entry => entry.key)
+      const comp = list.slice(start, end).map(({ key }) => key)
+      same(keys, comp)
+    }
+    let entries = await root.getAllEntries()
+    verify(entries)
+    const bulk = [ { key: 'dd', value: 2 }, { key: 'd', value: -1 } ]
+    const results = await root.transaction(bulk)
+    console.log(results)
+  })
 })

@@ -43,6 +43,9 @@ class MapLeaf extends IPLDLeaf {
   getMany (keys) {
     return getManyValues(this, keys)
   }
+  transaction (bulk, opts={}) {
+    return super.transaction(bulk, { ...classes, ...opts })
+  }
 }
 class MapBranch extends IPLDBranch {
   get (key) {
@@ -51,6 +54,16 @@ class MapBranch extends IPLDBranch {
   getMany (keys) {
     return getManyValues(this, keys)
   }
+  transaction (bulk, opts={}) {
+    return super.transaction(bulk, { ...classes, ...opts })
+  }
+}
+
+const classes = {
+  LeafClass: MapLeaf,
+  LeafEntryClass: MapLeafEntry,
+  BranchClass: MapBranch,
+  BranchEntryClass: MapBranchEntry
 }
 
 const createGetNode = (get, cache, chunker, codec, hasher, compare, opts) => {
