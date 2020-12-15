@@ -47,7 +47,7 @@ class EntryList {
       const found = []
       while (keys.length) {
         let key = keys[keys.length - 1]
-        key = typeof key === 'string' ? key : key.key
+        key = key.key ? key.key : key
         const comp = compare(key, entry.key)
         if (comp > -1) {
           found.push(keys.pop())
