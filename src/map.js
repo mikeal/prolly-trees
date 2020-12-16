@@ -3,7 +3,7 @@ import { readUInt32LE } from './utils.js'
 
 class MapEntry extends Entry {
   async identity () {
-    const encoded = this.codec.encode(this.encodeNode())
+    const encoded = await this.codec.encode(await this.encodeNode())
     const hash = await this.hasher.encode(encoded)
     return readUInt32LE(hash)
   }
@@ -21,8 +21,8 @@ class MapLeafEntry extends MapEntry {
 }
 
 class MapBranchEntry extends MapEntry {
-  encodeNode () {
-    return [this.key, this.address]
+  async encodeNode () {
+    return [this.key, await this.address]
   }
 }
 
@@ -43,8 +43,8 @@ class MapLeaf extends IPLDLeaf {
   getMany (keys) {
     return getManyValues(this, keys)
   }
-  transaction (bulk, opts={}) {
-    return super.transaction(bulk, { ...classes, ...opts })
+  bulk (bulk, opts={}) {
+    return super.bulk(bulk, { ...classes, ...opts })
   }
 }
 class MapBranch extends IPLDBranch {
@@ -54,8 +54,8 @@ class MapBranch extends IPLDBranch {
   getMany (keys) {
     return getManyValues(this, keys)
   }
-  transaction (bulk, opts={}) {
-    return super.transaction(bulk, { ...classes, ...opts })
+  bulk (bulk, opts={}) {
+    return super.bulk(bulk, { ...classes, ...opts })
   }
 }
 

@@ -209,13 +209,13 @@ class Node {
       for (const { key, del, value } of bulk) {
         const skey = stringKey(key)
         if (del) {
-          if (change[skey] === 'undefined') deletes.set(skey, null)
+          if (typeof changes[skey] === 'undefined') deletes.set(skey, null)
         } else {
           changes[skey] = { key, value }
           deletes.delete(skey)
         }
       }
-      entries = this.entryList.entries
+      entries = [...this.entryList.entries]
       for (const [ i, [ entry ] ] of results) {
         previous.push(entry)
         const skey = stringKey(entry.key)
@@ -227,7 +227,7 @@ class Node {
         }
       }
       let count = 0
-      for (const [ , i ] in deletes) {
+      for (const [ , i ] of deletes) {
         entries.splice(i - count++, 1)
       }
       const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, entryOptions))
@@ -235,18 +235,20 @@ class Node {
       entries = entries.concat(appends).sort(({ key: a }, { key: b} ) => this.compare(a, b))
       const _opts = { entries, NodeClass: LeafClass, distance: 0, ...nodeOptions }
       const nodes = await Node.from(_opts)
-      return { nodes, previous, blocks: [] }
+      return { nodes, previous, blocks: [], distance: 0 }
     } else {
       for (const [ i, [ entry, keys ]] of results) {
         const p = this.getNode(await entry.address)
         .then(node => node.transaction(keys.reverse(), { ...opts, sorted: true }))
-        .then(r => ({ entry, keys, ...r }))
+        .then(r => ({ entry, keys, distance, ...r }))
         results.set(i, p)
       }
-      entries = this.entryList.entries
+      entries = [...this.entryList.entries]
       const final = { previous: [], blocks: [] }
+      let distance
       for (const [ i, p ] of results) {
-        const { entry, keys, nodes, previous, blocks } = await p
+        const { entry, keys, nodes, previous, blocks, distance: _distance } = await p
+        distance = _distance
         entries[i] = nodes
         if (previous.length) final.previous = final.previous.concat(previous)
         if (blocks.length) final.blocks = final.blocks.concat(blocks)
@@ -255,12 +257,13 @@ class Node {
       // TODO: rewrite this to use getNode concurrently on merge
       let newEntries = []
       let prepend = null
-      for (const entry of entries) {
+      for (let entry of entries) {
         if (prepend) {
           if (entry.isEntry) entry = await this.getNode(await entry.address)
-          const entries = prepend.concat(entry.entryList.entries)
+          const entries = prepend.entryList.entries.concat(entry.entryList.entries)
           prepend = null
-          const _opts = { entries, NodeClass: BranchClass, distance: 0, ...nodeOptions }
+          const NodeClass = distance === 0 ? LeafClass : BranchClass
+          const _opts = { entries, NodeClass, distance, ...nodeOptions }
           const nodes = await Node.from(_opts)
           if (!nodes[nodes.length -1].closed) {
             prepend = nodes.pop()
@@ -270,25 +273,61 @@ class Node {
           }
         } else {
           if (!entry.isEntry && !entry.closed) {
-            prepend = entry.entryList.entries
+            prepend = entry
           } else {
             newEntries.push(entry)
           }
         }
       }
-      let distance
+      if (prepend) {
+        newEntries.push(prepend)
+      }
+      distance++
       const toEntry = async branch => {
         if (branch.isEntry) return branch
-        distance = branch.distance + 1
         const block = await branch.encode()
         final.blocks.push(block)
         this.cache.set(branch)
+        if (!branch.address) throw new Error('here')
         return new BranchEntryClass(branch, entryOptions)
       }
       entries = await Promise.all(newEntries.map(toEntry))
       const _opts = { entries, NodeClass: BranchClass, distance, ...nodeOptions }
-      return { nodes: await Node.from(_opts), ...final }
+      return { nodes: await Node.from(_opts), ...final, distance }
     }
+  }
+
+  async bulk (bulk, opts={}) {
+    const { BranchClass, BranchEntryClass } = opts
+    const entryOptions = {
+      codec: this.codec,
+      hasher: this.hasher,
+      getNode: this.getNode,
+      compare: this.compare,
+      cache: this.cache,
+      ...opts
+    }
+    const nodeOptions = { chunker: this.chunker, opts: entryOptions }
+
+    const results = await this.transaction(bulk, opts)
+    const onBranch = async branch => {
+      const block = await branch.encode()
+      results.blocks.push(block)
+      this.cache.set(branch)
+    }
+    while (results.nodes.length > 1) {
+      const distance = results.nodes[0].distance + 1
+      const mapper = async node => {
+        await onBranch(node)
+        if (!node.address) throw new Error('here')
+        return new BranchEntryClass(node, entryOptions)
+      }
+      const entries = await Promise.all(results.nodes.map(mapper))
+      results.nodes = await Node.from({ entries, NodeClass: BranchClass, distance, ...nodeOptions })
+    }
+    const [ root ] = results.nodes
+    await onBranch(root)
+    return { ...results, root }
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
@@ -332,16 +371,20 @@ class IPLDNode extends Node {
     const value = await this.encodeNode()
     const opts = { codec: this.codec, hasher: this.hasher, value }
     this.block = await encode(opts)
-    this.address = this.block.cid
     return this.block
   }
 }
 
 class IPLDBranch extends IPLDNode {
+  constructor (...args) {
+    super(...args)
+    if (!this.entryList.entries[0].address) throw new Error('ehre')
+  }
   async encodeNode () {
     const { entries } = this.entryList
     const mapper = async entry => [entry.key, await entry.address]
     const list = await Promise.all(entries.map(mapper))
+    if (!list[0][1]) throw new Error('here')
     return { branch: [this.distance, list], closed: this.closed }
   }
 

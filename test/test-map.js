@@ -131,23 +131,121 @@ describe('map', () => {
     let entries = await root.getAllEntries()
     verify(entries)
   })
-  it('transaction', async () => {
+  it('bulk insert 2', async () => {
     const { get, put } = storage()
-    let root
+    let last
     for await (const node of create({ get, compare, list, ...opts })) {
       const address = await node.address
       await put(await node.block)
-      root = node
+      last = node
     }
     const verify = (entries, start, end) => {
       const keys = entries.map(entry => entry.key)
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
-    let entries = await root.getAllEntries()
+    let entries = await last.getAllEntries()
     verify(entries)
     const bulk = [ { key: 'dd', value: 2 }, { key: 'd', value: -1 } ]
-    const results = await root.transaction(bulk)
-    console.log(results)
+    const { blocks, root, previous } = await last.bulk(bulk)
+    await Promise.all(blocks.map(block => put(block)))
+    same(await root.get('dd'), 2)
+    same(await root.get('d'), -1)
+    const expected = [
+      ['a', 1],
+      ['b', 1],
+      ['bb', 2],
+      ['c', 1],
+      ['cc', 2],
+      ['ff', 2],
+      ['h', 1],
+      ['z', 1],
+      ['zz', 2]
+    ]
+    for (const [ key, value ] of expected) {
+      same(await root.get(key), value)
+    }
+  })
+  it('bulk insert 100 update 1*100', async () => {
+    const { get, put } = storage()
+    let last
+    const list = []
+    let i = 0
+    let expected = []
+    while (i < 100) {
+      list.push({ key: i.toString(), value: true })
+      expected.push(i.toString())
+      i++
+    }
+    expected = expected.sort()
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      last = node
+    }
+    i = -1
+    const verify = (entries, start, end) => {
+      let count = 0
+      const _expected = [ ...expected ]
+      for (const { key, value } of entries) {
+        same(value, i.toString() === key ? false : true)
+        same(_expected.shift(), key)
+        count++
+      }
+      same(count, 100)
+    }
+    let entries = await last.getAllEntries()
+    verify(entries)
+    const base = last
+    i++
+    while (i < 100) {
+      const bulk = [ { key: i.toString(), value: false } ]
+      const { blocks, root, previous } = await base.bulk(bulk)
+      await Promise.all(blocks.map(block => put(block)))
+      verify(await root.getAllEntries())
+      i++
+    }
+  })
+  it('bulk insert 100 delete 1*100', async () => {
+    const { get, put } = storage()
+    let last
+    const list = []
+    let i = 0
+    let expected = []
+    while (i < 100) {
+      list.push({ key: i.toString(), value: true })
+      expected.push(i.toString())
+      i++
+    }
+    expected = expected.sort()
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      last = node
+    }
+    i = -1
+    const verify = (entries, start, end) => {
+      let count = 0
+      const _expected = [ ...expected ]
+      for (const { key, value } of entries) {
+        same(value, true)
+        let exp = _expected.shift()
+        if (exp === i.toString()) exp = _expected.shift()
+        same(exp, key)
+        count++
+      }
+      same(count, i === -1 ? 100 : 99)
+    }
+    let entries = await last.getAllEntries()
+    verify(entries)
+    const base = last
+    i++
+    while (i < 100) {
+      const bulk = [ { key: i.toString(), del: true } ]
+      const { blocks, root, previous } = await base.bulk(bulk)
+      await Promise.all(blocks.map(block => put(block)))
+      verify(await root.getAllEntries())
+      i++
+    }
   })
 })
