@@ -44,6 +44,9 @@
     },
     "./db-index": {
       "import": "./src/db-index.js"
+    },
+    "./utils": {
+      "import": "./src/utils.js"
     }
   }
 }
