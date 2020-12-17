@@ -1,6 +1,6 @@
 /* globals describe, it */
 import { deepStrictEqual as same } from 'assert'
-import { create } from '../src/db-index.js'
+import { create, load } from '../src/db-index.js'
 import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { nocache } from '../src/cache.js'
@@ -85,6 +85,8 @@ describe('db index', () => {
       const result = await root.get(key[0])
       same(result, expected)
     }
+    const cid = await leaf.address
+    root = await load({ cid, get, ...opts })
     let [ result ] = await leaf.get('zz')
     same(result.id, 9)
     const results = await leaf.range('z', 'zzzzz')
@@ -131,5 +133,28 @@ describe('db index', () => {
     }
     const entries = await root.getAllEntries()
     verify(entries)
+  })
+  it('bulk', async () => {
+    const { get, put } = storage()
+    let base
+    let leaf
+    for await (const node of create({ get, list, ...opts })) {
+      if (node.isLeaf) leaf = node
+      await put(await node.block)
+      base = node
+    }
+    const value = cid
+    let bulk = [ { key: ['a', 40], value }, { key: ['z', 41], value }, { key: ['b', 2], del: true } ]
+    const { root, blocks } = await base.bulk(bulk)
+    await Promise.all(blocks.map(b => put(b)))
+    const ids = results => results.map(({id}) => id)
+    same(ids(await root.get('a')), [0, 40])
+    same(ids(await root.get('b')), [1])
+    same(ids(await root.get('z')), [41])
+
+    bulk = [ { key: ['zz', 42], value }, { key: ['zz', 9], del: true } ]
+    const { root: newRoot, blocks: newBlocks } = await leaf.bulk(bulk)
+    await Promise.all(newBlocks.map(b => put(b)))
+    same(ids(await newRoot.get('zz')), [42])
   })
 })

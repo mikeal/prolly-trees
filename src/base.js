@@ -206,7 +206,7 @@ class Node {
       ...opts
     }
     const nodeOptions = { chunker: this.chunker, opts: entryOptions }
-    if (!sorted) bulk = bulk.sort(({ key }) => this.compare(key))
+    if (!sorted) bulk = bulk.sort(({ key: a }, { key: b }) => this.compare(a, b))
     let results = this.entryList.findMany(bulk, this.compare, true, this.isLeaf)
     let entries = []
     if (this.isLeaf) {
