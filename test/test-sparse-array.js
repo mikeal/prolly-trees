@@ -111,5 +111,24 @@ describe('sparse array', () => {
     verify(entries, 0, 9)
     entries = await root.getRangeEntries(1, 15)
     verify(entries, 0, 3)
+    same(await root.getLength(), 10001)
+  })
+  it('bulk', async () => {
+    const { get, put } = storage()
+    let root
+    let leaf
+    for await (const node of create({ get, compare, list, ...opts })) {
+      if (node.isLeaf) leaf = node
+      await put(await node.block)
+      root = node
+    }
+    same(await leaf.getLength(), 10001)
+    same(await root.getLength(), 10001)
+    const { blocks, root: lRoot } = await leaf.bulk([{ key: 10001, value: 'test' }])
+    await Promise.all(blocks.map(put))
+    same(await lRoot.get(10001), 'test')
+    const { blocks: _blocks, root: bRoot } = await root.bulk([{ key: 10001, value: 'test2' }])
+    await Promise.all(_blocks.map(put))
+    same(await bRoot.get(10001), 'test2')
   })
 })
