@@ -30,6 +30,9 @@
     "node-sql-parser": "^3.1.0"
   },
   "exports": {
+    "./cache": {
+      "import": "./src/cache.js"
+    },
     "./cid-set": {
       "import": "./src/cid-set.js"
     },
