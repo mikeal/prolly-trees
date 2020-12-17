@@ -311,4 +311,24 @@ describe('map', () => {
     }
     same(threw, true)
   })
+  it('leaf', async () => {
+    const { get, put } = storage()
+    let root
+    let leaf
+    const chunker = bf(1000)
+    for await (const node of create({ get, compare, list, ...opts, chunker })) {
+      const address = await node.address
+      if (!node.isLeaf) throw new Error('Not leaf')
+      await put(await node.block)
+      root = node
+    }
+    let result = await root.get('c')
+    same(result, 1)
+    result = await root.getMany(['c', 'cc', 'd'])
+    same(result, [1, 2, 1])
+    const bulk = [{ key: 'aaa', value: 3 }]
+    const { blocks, root: rr, previous } = await root.bulk(bulk)
+    await Promise.all(blocks.map(block => put(block)))
+    same(await rr.get('aaa'), 3)
+  })
 })

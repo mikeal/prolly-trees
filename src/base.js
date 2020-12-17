@@ -33,7 +33,7 @@ class EntryList {
     return null
   }
 
-  findMany (keys, compare, sorted = false) {
+  findMany (keys, compare, sorted = false, strict = false) {
     const { entries } = this
     const results = new Map()
     // Note: object based entries must be sorted
@@ -50,10 +50,20 @@ class EntryList {
         let key = keys[keys.length - 1]
         key = key.key ? key.key : key
         const comp = compare(key, entry.key)
-        if (comp > -1) {
-          found.push(keys.pop())
+        if (!strict) {
+          if (comp > -1) {
+            found.push(keys.pop())
+          } else {
+            break
+          }
         } else {
-          break
+          if (comp === 0) {
+            found.push(keys.pop())
+          } else if (comp > 0) {
+            keys.pop()
+          } else {
+            break
+          }
         }
       }
       if (found.length) {
@@ -136,7 +146,7 @@ class Node {
 
   async getEntries (keys, sorted = false) {
     if (!sorted) keys = keys.sort(this.compare)
-    const results = this.entryList.findMany(keys, this.compare, true)
+    const results = this.entryList.findMany(keys, this.compare, true, this.isLeaf)
     if (this.isLeaf) {
       return [...results.values()].map(([entry]) => entry)
     }
@@ -197,7 +207,7 @@ class Node {
     }
     const nodeOptions = { chunker: this.chunker, opts: entryOptions }
     if (!sorted) bulk = bulk.sort(({ key }) => this.compare(key))
-    const results = this.entryList.findMany(bulk, this.compare, true)
+    let results = this.entryList.findMany(bulk, this.compare, true, this.isLeaf)
     let entries = []
     if (this.isLeaf) {
       const previous = []

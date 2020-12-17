@@ -12,8 +12,11 @@ const bf = factor => {
   const threshold = Math.floor(MAX_UINT32 / factor)
   return async entry => {
     const identity = await entry.identity()
+    /* c8 ignore next */
     if (typeof identity !== 'number') {
+      /* c8 ignore next */
       throw new Error('Identity must be a number')
+      /* c8 ignore next */
     }
     if (identity <= threshold) {
       return true
@@ -28,11 +31,13 @@ const enc32 = num => {
   b.writeUint32LE(num)
   return b
 }
+/*
 const enc64 = num => {
   const b = Buffer.allocUnsafe(8)
   b.writeBigUint64LE(num)
   return b
 }
+*/
 
 const simpleCompare = (a, b) => {
   if (a === b) return 0
@@ -56,4 +61,4 @@ const binaryCompare = (b1, b2) => {
   return 0
 }
 
-export { readUInt32LE, enc32, enc64, bf, binaryCompare, simpleCompare }
+export { readUInt32LE, enc32, bf, binaryCompare, simpleCompare }
