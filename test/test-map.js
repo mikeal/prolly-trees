@@ -218,7 +218,7 @@ describe('map', () => {
       i++
     }
     expected = expected.sort()
-    for await (const node of create({ get, compare, list, ...opts })) {
+    for await (const node of create({ get, compare, list, ...opts})) {
       const address = await node.address
       await put(await node.block)
       last = node
@@ -247,5 +247,65 @@ describe('map', () => {
       verify(await root.getAllEntries())
       i++
     }
+  })
+  it('brute ranges', async () => {
+    const { get, put } = storage()
+    let last
+    const list = []
+    let i = 0
+    let expected = []
+    while (i < 100) {
+      list.push({ key: i.toString(), value: true })
+      expected.push(i.toString())
+      i++
+    }
+    expected = expected.sort()
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      await put(await node.block)
+      last = node
+    }
+    const front = [...expected]
+    const back = [...expected]
+    while (front.length) {
+      const entries = await last.getRangeEntries(front[0], front[front.length -1] + '999')
+      same(entries.map(({key}) => key), front)
+      front.shift()
+    }
+    while (front.length) {
+      const entries = await last.getRangeEntries(back[0], back[back.length -1] + '.')
+      same(entries.map(({key}) => key), back)
+      back.pop()
+    }
+
+    let entries = await last.getRangeEntries('9999999', '9999999999999999')
+    same(entries, [])
+    entries = await last.getRangeEntries('.', '.')
+  })
+  it('getEntry', async () => {
+    const { get, put } = storage()
+    let root
+    let leaf
+    for await (const node of create({ get, compare, list, ...opts })) {
+      const address = await node.address
+      if (node.isLeaf) leaf = node
+      await put(await node.block)
+      root = node
+    }
+    let threw = true
+    try {
+      await root.getEntry('.')
+      threw = false
+    } catch (e) {
+      if (e.message !== 'Not found') throw e
+    }
+    same(threw, true)
+    try {
+      await leaf.getEntry('.')
+      threw = false
+    } catch (e) {
+      if (e.message !== 'Not found') throw e
+    }
+    same(threw, true)
   })
 })

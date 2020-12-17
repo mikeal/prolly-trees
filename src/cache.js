@@ -4,4 +4,22 @@ const nocache = {
   set: () => {}
 }
 
-export { nocache }
+const toKey = key => key.asCID === key ? key.toString() : JSON.stringify(key)
+
+const global = {
+  blocks: {},
+  has: key => global.blocks[toKey(key)] ? true : false,
+  set: async node => {
+    const key = node.address
+    if (key.then) key = await key
+    key = toKey(key)
+    global.blocks[key] = node
+  },
+  get: key => {
+    key = toKey(key)
+    if (typeof global.blocks[key] === 'undefined') throw new Error('Not found')
+    return global.blocks[key]
+  }
+}
+
+export { nocache, global }

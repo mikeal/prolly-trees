@@ -85,11 +85,6 @@ class EntryList {
       }
       first = i
     }
-    if (first === -1) first = 0
-    if (first === undefined) {
-      // not found in this range
-      return { entries: [] }
-    }
     return { first, last, entries: entries.slice(first, last + 1) }
   }
 }
@@ -288,7 +283,6 @@ class Node {
         const block = await branch.encode()
         final.blocks.push(block)
         this.cache.set(branch)
-        if (!branch.address) throw new Error('here')
         return new BranchEntryClass(branch, entryOptions)
       }
       entries = await Promise.all(newEntries.map(toEntry))
@@ -319,7 +313,6 @@ class Node {
       const distance = results.nodes[0].distance + 1
       const mapper = async node => {
         await onBranch(node)
-        if (!node.address) throw new Error('here')
         return new BranchEntryClass(node, entryOptions)
       }
       const entries = await Promise.all(results.nodes.map(mapper))
@@ -376,15 +369,10 @@ class IPLDNode extends Node {
 }
 
 class IPLDBranch extends IPLDNode {
-  constructor (...args) {
-    super(...args)
-    if (!this.entryList.entries[0].address) throw new Error('ehre')
-  }
   async encodeNode () {
     const { entries } = this.entryList
     const mapper = async entry => [entry.key, await entry.address]
     const list = await Promise.all(entries.map(mapper))
-    if (!list[0][1]) throw new Error('here')
     return { branch: [this.distance, list], closed: this.closed }
   }
 
