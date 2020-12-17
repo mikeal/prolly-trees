@@ -46,8 +46,10 @@ const createGetNode = (get, cache, chunker, codec, hasher, compare) => {
       opts.distance = distance
       entries = _entries.map(([key, address]) => new CIDNodeEntry({ key, address }))
       CLS = CIDSetBranch
-    } else {
+    } /* c8 ignore next */ else {
+      /* c8 ignore next */
       throw new Error('Unknown block data, does not match schema')
+      /* c8 ignore next */
     }
     const entryList = new EntryList({ entries, closed: value.closed })
     const node = new CLS({ entryList, ...opts })

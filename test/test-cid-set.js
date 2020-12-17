@@ -4,7 +4,7 @@ import { create } from '../src/cid-set.js'
 import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { CID } from 'multiformats'
-import { nocache } from '../src/cache.js'
+import { global as cache, nocache } from '../src/cache.js'
 import { bf, enc32 } from '../src/utils.js'
 
 const MAX_UINT32 = 4294967295
@@ -38,8 +38,6 @@ const mkcids = list => {
   return ret
 }
 
-const cache = nocache
-
 const storage = () => {
   const blocks = {}
   const put = block => {
@@ -53,7 +51,7 @@ const storage = () => {
   return { get, put, blocks }
 }
 
-const opts = { cache, chunker, codec, hasher }
+const opts = { chunker, codec, hasher }
 
 const verify = (check, node) => {
   same(check.isLeaf, node.isLeaf)
@@ -63,26 +61,30 @@ const verify = (check, node) => {
 }
 
 describe('cid set', () => {
-  it('basic create', async () => {
-    const { get, put } = storage()
-    const list = mkcids([threshold + 1, threshold - 2, threshold + 2])
-    const checks = [
-      { isLeaf: true, entries: 2, closed: true },
-      { isLeaf: true, entries: 1, closed: false },
-      { isBranch: true, entries: 2, closed: false }
-    ]
-    let root
-    for await (const node of create({ get, list, ...opts })) {
-      // console.log(node.entryList)
-      const address = await node.address
-      same(address.asCID, address)
-      verify(checks.shift(), node)
-      await put(await node.block)
-      root = node
-    }
-    root = await root.getNode(await root.address)
-    for (const cid of list) {
-      same(await root.get(cid), cid)
-    }
-  })
+  const mktest = (doCache) => {
+    it(`basic create cache=${!!doCache}`, async () => {
+      const { get, put } = storage()
+      const list = mkcids([threshold + 1, threshold - 2, threshold + 2])
+      const checks = [
+        { isLeaf: true, entries: 2, closed: true },
+        { isLeaf: true, entries: 1, closed: false },
+        { isBranch: true, entries: 2, closed: false }
+      ]
+      let root
+      for await (const node of create({ get, list, ...opts, cache: doCache ? cache : nocache })) {
+        await cache.set(node)
+        const address = await node.address
+        same(address.asCID, address)
+        verify(checks.shift(), node)
+        await put(await node.block)
+        root = node
+      }
+      root = await root.getNode(await root.address)
+      for (const cid of list) {
+        same(await root.get(cid), cid)
+      }
+    })
+  }
+  mktest(true)
+  mktest(false)
 })

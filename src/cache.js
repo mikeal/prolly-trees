@@ -13,7 +13,7 @@ const global = {
     let key = node.address
     if (key.then) key = await key
     key = toKey(key)
-    global.blocks[key] = node
+    if (!global.blocks[key]) global.blocks[key] = node
   },
   get: key => {
     key = toKey(key)

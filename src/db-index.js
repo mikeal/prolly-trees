@@ -1,4 +1,4 @@
-import { create as mapCreate, load as mapLoad, MapLeaf, MapBranch } from './map.js'
+import { create as mapCreate, load as mapLoad, MapLeaf, MapBranch, MapLeafEntry, MapBranchEntry } from './map.js'
 import { simpleCompare } from './utils.js'
 
 const compare = (a, b) => {
@@ -34,6 +34,10 @@ class DBIndexLeaf extends MapLeaf {
   range (start, end) {
     return getRange(this, start, end)
   }
+
+  bulk (bulk, opts = {}) {
+    return super.bulk(bulk, { ...classes, ...opts })
+  }
 }
 
 class DBIndexBranch extends MapBranch {
@@ -44,12 +48,18 @@ class DBIndexBranch extends MapBranch {
   range (start, end) {
     return getRange(this, start, end)
   }
+
+  bulk (bulk, opts = {}) {
+    return super.bulk(bulk, { ...classes, ...opts })
+  }
 }
 
 const LeafClass = DBIndexLeaf
 const BranchClass = DBIndexBranch
 
-const defaults = { LeafClass, BranchClass, compare }
+const classes = { LeafClass, BranchClass, LeafEntryClass: MapLeafEntry, BranchEntryClass: MapBranchEntry }
+
+const defaults = { ...classes, compare }
 
 const create = opts => {
   opts = { ...defaults, ...opts }

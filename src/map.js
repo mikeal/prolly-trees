@@ -99,7 +99,7 @@ const createGetNode = (get, cache, chunker, codec, hasher, compare, opts) => {
     cache.set(block.cid, node)
     return node
   }
-  const getNode = cid => {
+  const getNode = async cid => {
     if (cache.has(cid)) return cache.get(cid)
     return get(cid).then(block => decoder(block))
   }
@@ -131,4 +131,4 @@ const load = ({ cid, get, cache, chunker, codec, hasher, compare, ...opts }) => 
   return getNode(cid)
 }
 
-export { create, load, MapLeaf, MapBranch }
+export { create, load, MapLeaf, MapBranch, MapLeafEntry, MapBranchEntry }

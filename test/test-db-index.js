@@ -123,24 +123,4 @@ describe('db index', () => {
     const entries = await root.getAllEntries()
     verify(entries)
   })
-  /*
-  it('getEntries & getMany', async () => {
-    const { get, put } = storage()
-    let root
-    for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
-      await put(await node.block)
-      root = node
-    }
-    const entries = await root.getEntries(['a', 'z'])
-    same(entries.length, 2)
-    const [ a, zz ] = entries
-    same(a.key, 'a')
-    same(a.value, 1)
-    same(zz.key, 'zz')
-    same(zz.value, 2)
-    const values = await root.getMany(['a', 'zz'])
-    same(values, [1, 2])
-  })
-  */
 })

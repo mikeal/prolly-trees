@@ -3,7 +3,7 @@ import { deepStrictEqual as same } from 'assert'
 import { create, load } from '../src/map.js'
 import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
-import { nocache } from '../src/cache.js'
+import { nocache, global as globalCache } from '../src/cache.js'
 import { bf, simpleCompare as compare } from '../src/utils.js'
 
 const chunker = bf(3)
@@ -178,7 +178,8 @@ describe('map', () => {
       i++
     }
     expected = expected.sort()
-    for await (const node of create({ get, compare, list, ...opts })) {
+    for await (const node of create({ get, compare, list, ...opts, cache: globalCache })) {
+      await globalCache.set(node)
       const address = await node.address
       await put(await node.block)
       last = node
@@ -218,7 +219,8 @@ describe('map', () => {
       i++
     }
     expected = expected.sort()
-    for await (const node of create({ get, compare, list, ...opts })) {
+    for await (const node of create({ get, compare, list, ...opts, cache: globalCache })) {
+      await globalCache.set(node)
       const address = await node.address
       await put(await node.block)
       last = node
@@ -260,7 +262,8 @@ describe('map', () => {
       i++
     }
     expected = expected.sort()
-    for await (const node of create({ get, compare, list, ...opts })) {
+    for await (const node of create({ get, compare, list, ...opts, cache: globalCache })) {
+      await globalCache.set(node)
       const address = await node.address
       await put(await node.block)
       last = node
