@@ -1,11 +1,12 @@
 {
   "name": "chunky-trees",
-  "version": "0.0.0",
+  "version": "0.0.0-dev",
   "type": "module",
   "scripts": {
     "lint": "standard",
     "build": "npm_config_yes=true npx ipjs@latest build --tests",
     "publish": "npm_config_yes=true npx ipjs@latest publish",
+    "test:node-v12": "mocha test/test-*.js",
     "test:cjs": "npm run build && mocha dist/cjs/node-test/test-*.js",
     "test:node": "hundreds mocha test/test-*.js",
     "test:browser": "polendina --cleanup dist/cjs/node-test/test-*.js",
