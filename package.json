@@ -1,10 +1,15 @@
 {
   "name": "chunky-trees",
   "version": "0.0.0",
-  "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "mocha test/test-*.js",
+    "lint": "standard",
+    "build": "npm_config_yes=true npx ipjs@latest build --tests",
+    "publish": "npm_config_yes=true npx ipjs@latest publish",
+    "test:cjs": "npm run build && mocha dist/cjs/node-test/test-*.js",
+    "test:node": "hundreds mocha test/test-*.js",
+    "test:browser": "polendina --cleanup dist/cjs/node-test/test-*.js",
+    "test": "npm run lint && npm run test:node && npm run test:cjs && npm run test:browser",
     "coverage": "c8 --reporter=html mocha test/test-*.js && npm_config_yes=true npx st -d coverage -p 8080"
   },
   "keywords": [],
@@ -14,11 +19,27 @@
   "devDependencies": {
     "@ipld/dag-cbor": "^2.0.3",
     "c8": "^7.3.5",
+    "hundreds": "^0.0.9",
     "mocha": "^8.2.1",
     "multiformats": "^4.4.1",
+    "polendina": "^1.1.0",
     "standard": "^16.0.3"
   },
   "dependencies": {
     "node-sql-parser": "^3.1.0"
+  },
+  "exports": {
+    "./cid-set": {
+      "import": "./src/cid-set.js"
+    },
+    "./map": {
+      "import": "./src/map.js"
+    },
+    "./sparse-array": {
+      "import": "./src/sparse-array.js"
+    },
+    "./db-index": {
+      "import": "./src/db-index.js"
+    }
   }
 }

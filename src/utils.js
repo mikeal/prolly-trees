@@ -26,10 +26,14 @@ const bf = factor => {
 }
 
 // TODO: cache small numbers to avoid unnecessary tiny allocations
-const enc32 = num => {
-  const b = Buffer.allocUnsafe(4)
-  b.writeUint32LE(num)
-  return b
+const enc32 = value => {
+  value = +value
+  const buff = new Uint8Array(4)
+  buff[3] = (value >>> 24)
+  buff[2] = (value >>> 16)
+  buff[1] = (value >>> 8)
+  buff[0] = (value & 0xff)
+  return buff
 }
 /*
 const enc64 = num => {

@@ -79,7 +79,6 @@ describe('map', () => {
     const { get, put } = storage()
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
       await put(await node.block)
       root = node
     }
@@ -97,7 +96,6 @@ describe('map', () => {
     const { get, put } = storage()
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
       await put(await node.block)
       root = node
     }
@@ -119,7 +117,6 @@ describe('map', () => {
     const { get, put } = storage()
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
       await put(await node.block)
       root = node
     }
@@ -135,7 +132,6 @@ describe('map', () => {
     const { get, put } = storage()
     let last
     for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
       await put(await node.block)
       last = node
     }
@@ -147,7 +143,7 @@ describe('map', () => {
     const entries = await last.getAllEntries()
     verify(entries)
     const bulk = [{ key: 'dd', value: 2 }, { key: 'd', value: -1 }]
-    const { blocks, root, previous } = await last.bulk(bulk)
+    const { blocks, root } = await last.bulk(bulk)
     await Promise.all(blocks.map(block => put(block)))
     same(await root.get('dd'), 2)
     same(await root.get('d'), -1)
@@ -180,7 +176,6 @@ describe('map', () => {
     expected = expected.sort()
     for await (const node of create({ get, compare, list, ...opts, cache: globalCache })) {
       await globalCache.set(node)
-      const address = await node.address
       await put(await node.block)
       last = node
     }
@@ -201,7 +196,7 @@ describe('map', () => {
     i++
     while (i < 100) {
       const bulk = [{ key: i.toString(), value: false }]
-      const { blocks, root, previous } = await base.bulk(bulk)
+      const { blocks, root } = await base.bulk(bulk)
       await Promise.all(blocks.map(block => put(block)))
       verify(await root.getAllEntries())
       i++
@@ -221,7 +216,6 @@ describe('map', () => {
     expected = expected.sort()
     for await (const node of create({ get, compare, list, ...opts, cache: globalCache })) {
       await globalCache.set(node)
-      const address = await node.address
       await put(await node.block)
       last = node
     }
@@ -245,6 +239,10 @@ describe('map', () => {
     while (i < 100) {
       const bulk = [{ key: i.toString(), del: true }]
       const { blocks, root, previous } = await base.bulk(bulk)
+      same(previous.length, 1)
+      const [{ key, value }] = previous
+      same(key, i.toString())
+      same(value, true)
       await Promise.all(blocks.map(block => put(block)))
       verify(await root.getAllEntries())
       i++
@@ -264,7 +262,6 @@ describe('map', () => {
     expected = expected.sort()
     for await (const node of create({ get, compare, list, ...opts, cache: globalCache })) {
       await globalCache.set(node)
-      const address = await node.address
       await put(await node.block)
       last = node
     }
@@ -290,7 +287,6 @@ describe('map', () => {
     let root
     let leaf
     for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
       if (node.isLeaf) leaf = node
       await put(await node.block)
       root = node
@@ -314,10 +310,8 @@ describe('map', () => {
   it('leaf', async () => {
     const { get, put } = storage()
     let root
-    let leaf
     const chunker = bf(1000)
     for await (const node of create({ get, compare, list, ...opts, chunker })) {
-      const address = await node.address
       if (!node.isLeaf) throw new Error('Not leaf')
       await put(await node.block)
       root = node
@@ -327,7 +321,7 @@ describe('map', () => {
     result = await root.getMany(['c', 'cc', 'd'])
     same(result, [1, 2, 1])
     const bulk = [{ key: 'aaa', value: 3 }]
-    const { blocks, root: rr, previous } = await root.bulk(bulk)
+    const { blocks, root: rr } = await root.bulk(bulk)
     await Promise.all(blocks.map(block => put(block)))
     same(await rr.get('aaa'), 3)
   })

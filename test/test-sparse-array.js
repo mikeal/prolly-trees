@@ -78,7 +78,6 @@ describe('sparse array', () => {
     const { get, put } = storage()
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
       await put(await node.block)
       root = node
     }
@@ -96,7 +95,6 @@ describe('sparse array', () => {
     const { get, put } = storage()
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
       await put(await node.block)
       root = node
     }
