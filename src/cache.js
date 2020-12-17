@@ -8,9 +8,9 @@ const toKey = key => key.asCID === key ? key.toString() : JSON.stringify(key)
 
 const global = {
   blocks: {},
-  has: key => global.blocks[toKey(key)] ? true : false,
+  has: key => !!global.blocks[toKey(key)],
   set: async node => {
-    const key = node.address
+    let key = node.address
     if (key.then) key = await key
     key = toKey(key)
     global.blocks[key] = node

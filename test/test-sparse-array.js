@@ -69,7 +69,7 @@ describe('sparse array', () => {
       root = node
     }
     const cid = await root.address
-    root = await load({ cid, get, compare, ...opts})
+    root = await load({ cid, get, compare, ...opts })
     for (const { key } of list) {
       same(await root.get(key), v)
     }
@@ -84,7 +84,7 @@ describe('sparse array', () => {
     }
     const entries = await root.getEntries([2, 10000])
     same(entries.length, 2)
-    const [ a, b ] = entries
+    const [a, b] = entries
     same(a.key, 2)
     same(a.value, v)
     same(b.key, 10000)

@@ -27,6 +27,7 @@ class SQLBase {
     this.block = block || this.encode()
     this.address = this.block.then ? this.block.then(b => b.cid) : this.block.cid
   }
+
   async encode () {
     if (this.block) return this.block
     await immediate()
@@ -43,13 +44,16 @@ class Column extends SQLBase {
     this.schema = schema
     this.index = index
   }
+
   async encodeNode () {
     const index = this.index === null ? null : await this.index.address
     return { schema: this.schema, index }
   }
+
   static create (schema) {
     return new Column({ schema, index: null })
   }
+
   static from (cid, { get, cache, chunker }) {
     const create = async (block) => {
       let { schema, index } = block.value
@@ -77,12 +81,15 @@ class Row {
     this.value = block.value
     this.props = table.columns.map(col => col.schema)
   }
+
   get address () {
     return this.block.cid
   }
+
   getIndex (i) {
     return this.value[i]
   }
+
   get (columnName) {
     if (Array.isArray(this.value)) {
       // TODO: optimize this find to use only a single iteration
@@ -93,6 +100,7 @@ class Row {
       return this.value[columnName]
     }
   }
+
   columns (query) {
     if (query === '*') {
       return this.toArray()
@@ -109,6 +117,7 @@ class Row {
       throw new Error('Not Implemented')
     }
   }
+
   toArray () {
     if (Array.isArray(this.value)) {
       return this.value
@@ -116,6 +125,7 @@ class Row {
       throw new Error('Unsupported')
     }
   }
+
   toObject () {
     throw new Error('no implemented')
     // this is not finished
@@ -146,7 +156,7 @@ const tableInsert = async function * (table, ast, { database, chunker }) {
     yield block
     const _row = new Row({ block, table })
     cache.set(_row.address, _row)
-    inserts.push({ block, row: _row})
+    inserts.push({ block, row: _row })
   }
   const opts = { chunker, get, cache, ...mf }
   if (table.rows === null) {
@@ -163,7 +173,7 @@ const tableInsert = async function * (table, ast, { database, chunker }) {
       const entries = []
       for (const { key, value, row } of list) {
         const val = row.getIndex(i)
-        entries.push({ key: [ val, key ], row, value: row.address })
+        entries.push({ key: [val, key], row, value: row.address })
       }
       let index
       for await (const node of createDBIndex({ list: entries, ...opts })) {
@@ -250,6 +260,7 @@ class Where {
     this.ast = ast
     this.table = table
   }
+
   async all () {
     const where = this.ast
     const { table, db } = this
@@ -262,7 +273,7 @@ class Where {
       if (where.left.left.column && where.left.left.column === where.right.left.column) {
         if (!rangeOperators.has(where.left.operator) ||
             !rangeOperators.has(where.right.operator)
-           ) {
+        ) {
           throw new Error('Invalid SQL, must compare same column using >, <, >=, or <=')
         }
         const column = table.getColumn(where.left.left.column)
@@ -276,12 +287,12 @@ class Where {
 
       const left = new Where(db, where.left, table)
       const right = new Where(db, where.right, table)
-      const [ ll, rr ] = await Promise.all([ left.asMap(), right.asMap() ])
+      const [ll, rr] = await Promise.all([left.asMap(), right.asMap()])
       if (where.operator === 'OR') {
-        const all = new Map([ ...ll.entries(), ...rr.entries() ])
-        results = [ ...all.keys() ].sort().map(k => ({ key: k, value: all.get(k) }))
+        const all = new Map([...ll.entries(), ...rr.entries()])
+        results = [...all.keys()].sort().map(k => ({ key: k, value: all.get(k) }))
       } else {
-        results = [ ...ll.keys() ].filter(k => rr.has(k)).map(k => {
+        results = [...ll.keys()].filter(k => rr.has(k)).map(k => {
           return { key: k, value: ll.get(k) }
         })
       }
@@ -294,17 +305,18 @@ class Where {
       let { start, end } = getRangeQuery(where, column)
       if (typeof start === 'undefined') start = absoluteStart(column)
       if (typeof end === 'undefined') end = absoluteEnd(column)
-      results = await column.index.getRangeEntries([ start, 0 ], [ end, 0 ])
+      results = await column.index.getRangeEntries([start, 0], [end, 0])
     } else {
       throw new Error('Not Implemented')
     }
     return results
   }
+
   async asMap () {
     const results = await this.all()
     return new Map(results.map(r => {
-      if (Array.isArray(r.key)) return [ r.key[1], r.value ]
-      return [ r.key, r.value ]
+      if (Array.isArray(r.key)) return [r.key[1], r.value]
+      return [r.key, r.value]
     }))
   }
 }
@@ -316,22 +328,27 @@ class Table extends SQLBase {
     this.rows = rows
     this.columns = columns
   }
+
   getColumn (columnName) {
     return this.columns.find(c => c.name === columnName)
   }
+
   async encodeNode () {
     const columns = await Promise.all(this.columns.map(column => column.address))
     const rows = this.rows === null ? null : await this.rows.address
     return { columns, rows }
   }
+
   insert (ast, opts) {
     return tableInsert(this, ast, opts)
   }
+
   static create (columnSchemas) {
     const columns = columnSchemas.map(schema => Column.create(schema))
     const table = new Table({ rows: null, columns })
     return table
   }
+
   static from (cid, name, { get, cache, chunker }) {
     const create = async (block) => {
       let { columns, rows } = block.value
@@ -348,7 +365,7 @@ class Table extends SQLBase {
 }
 
 const createTable = async function * (database, ast) {
-  const [ { table: name } ] = ast.table
+  const [{ table: name }] = ast.table
   const table = Table.create(ast.create_definitions)
   const columns = await Promise.all(table.columns.map(column => column.encode()))
   yield * columns
@@ -370,30 +387,35 @@ class Database extends SQLBase {
     this.cache = cache
     this.tables = tables
   }
+
   createTable (ast) {
     return createTable(this, ast)
   }
+
   async encodeNode () {
-    const promises = entries(this.tables).map(async ([ key, value ]) => {
-      return [ key, await value.address ]
+    const promises = entries(this.tables).map(async ([key, value]) => {
+      return [key, await value.address]
     })
     const tables = fromEntries(await Promise.all(promises))
     return { tables }
   }
+
   static create (opts) {
     return new Database({ tables: {}, ...opts })
   }
+
   static async from (cid, { get, cache, chunker }) {
     const create = async (block) => {
       let { tables } = block.value
       const promises = entries(tables).map(async ([key, cid]) => {
-        return [ key, await Table.from(cid, key, { get, cache, chunker }) ]
+        return [key, await Table.from(cid, key, { get, cache, chunker })]
       })
       tables = fromEntries(await Promise.all(promises))
       return new Database({ tables, get, cache, block })
     }
     return getNode(cid, get, cache, create)
   }
+
   sql (q, opts) {
     return sqlQuery(q, { ...opts, database: this })
   }
@@ -451,6 +473,7 @@ class Select {
     this.db = db
     this.ast = ast
   }
+
   async columns (entry, table) {
     const { value } = entry
     const { get, cache } = this.db
@@ -458,12 +481,15 @@ class Select {
     const row = await getNode(value, get, cache, create)
     return { row, columns: row.columns(this.ast.columns) }
   }
+
   where () {
     return runWhere(this)
   }
+
   run () {
     return runSelect(this)
   }
+
   async _all () {
     let results = []
     for await (const result of this.run()) {
@@ -474,7 +500,7 @@ class Select {
         for (const order of this.ast.orderby) {
           if (order.expr.type !== 'column_ref') throw new Error('Not Implemented')
           const { column } = order.expr
-          const [ aa, bb ] = [ a.row.get(column), b.row.get(column) ]
+          const [aa, bb] = [a.row.get(column), b.row.get(column)]
           if (aa < bb) return order.type === 'ASC' ? -1 : 1
           if (aa > bb) return order.type === 'ASC' ? 1 : -1
         }
@@ -483,6 +509,7 @@ class Select {
     }
     return results
   }
+
   async all () {
     const results = await this._all()
     return results.map(r => r.columns)
@@ -501,7 +528,7 @@ const exec = (ast, { database, chunker }) => {
   }
   if (type === 'insert') {
     if (!database) throw new Error('No database to create table in')
-    const [ { db, table: name } ] = ast.table
+    const [{ db, table: name }] = ast.table
     if (db !== null) throw new Error('Not implemented')
     const table = database.tables[name]
     if (!table) throw new Error(`Missing table '${name}'`)
@@ -516,4 +543,3 @@ const exec = (ast, { database, chunker }) => {
 const sqlQuery = (q, opts) => exec(parse(q), opts)
 
 export { Database, Table, Column, exec, sqlQuery as sql }
-

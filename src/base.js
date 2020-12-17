@@ -7,6 +7,7 @@ class Entry {
     this.codec = opts.codec
     this.hasher = opts.hasher
   }
+
   get isEntry () {
     return true
   }
@@ -56,7 +57,7 @@ class EntryList {
         }
       }
       if (found.length) {
-        results.set(i, [ entry, found ])
+        results.set(i, [entry, found])
       }
     }
     return results
@@ -140,7 +141,7 @@ class Node {
       return [...results.values()].map(([entry]) => entry)
     }
     let entries = []
-    for (const [ entry, keys ] of [...results.values()].reverse()) {
+    for (const [entry, keys] of [...results.values()].reverse()) {
       const p = this.getNode(await entry.address)
       entries.push(p.then(node => node.getEntries(keys.reverse(), true)))
     }
@@ -155,6 +156,7 @@ class Node {
         const s = this.compare(start, entry.key)
         const e = this.compare(end, entry.key)
         if (s <= 0 && e >= 0) return true
+        return false
       })
     }
 
@@ -162,7 +164,7 @@ class Node {
     const thenRange = async entry => this.getNode(await entry.address).then(node => {
       return node.getRangeEntries(start, end)
     })
-    const results = [ thenRange(entries.shift()) ]
+    const results = [thenRange(entries.shift())]
 
     if (!entries.length) return results[0]
     const last = thenRange(entries.pop())
@@ -177,7 +179,7 @@ class Node {
     return Promise.all(results).then(results => results.flat())
   }
 
-  async transaction (bulk, opts={}) {
+  async transaction (bulk, opts = {}) {
     const {
       sorted,
       LeafClass,
@@ -211,7 +213,7 @@ class Node {
         }
       }
       entries = [...this.entryList.entries]
-      for (const [ i, [ entry ] ] of results) {
+      for (const [i, [entry]] of results) {
         previous.push(entry)
         const skey = stringKey(entry.key)
         if (deletes.has(skey)) {
@@ -222,27 +224,27 @@ class Node {
         }
       }
       let count = 0
-      for (const [ , i ] of deletes) {
+      for (const [, i] of deletes) {
         entries.splice(i - count++, 1)
       }
       const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, entryOptions))
       // TODO: there's a faster version of this that only does one iteration
-      entries = entries.concat(appends).sort(({ key: a }, { key: b} ) => this.compare(a, b))
+      entries = entries.concat(appends).sort(({ key: a }, { key: b }) => this.compare(a, b))
       const _opts = { entries, NodeClass: LeafClass, distance: 0, ...nodeOptions }
       const nodes = await Node.from(_opts)
       return { nodes, previous, blocks: [], distance: 0 }
     } else {
-      for (const [ i, [ entry, keys ]] of results) {
+      for (const [i, [entry, keys]] of results) {
         const p = this.getNode(await entry.address)
-        .then(node => node.transaction(keys.reverse(), { ...opts, sorted: true }))
-        .then(r => ({ entry, keys, distance, ...r }))
+          .then(node => node.transaction(keys.reverse(), { ...opts, sorted: true }))
+          .then(r => ({ entry, keys, distance, ...r }))
         results.set(i, p)
       }
       entries = [...this.entryList.entries]
       const final = { previous: [], blocks: [] }
       let distance
-      for (const [ i, p ] of results) {
-        const { entry, keys, nodes, previous, blocks, distance: _distance } = await p
+      for (const [i, p] of results) {
+        const { nodes, previous, blocks, distance: _distance } = await p
         distance = _distance
         entries[i] = nodes
         if (previous.length) final.previous = final.previous.concat(previous)
@@ -260,7 +262,7 @@ class Node {
           const NodeClass = distance === 0 ? LeafClass : BranchClass
           const _opts = { entries, NodeClass, distance, ...nodeOptions }
           const nodes = await Node.from(_opts)
-          if (!nodes[nodes.length -1].closed) {
+          if (!nodes[nodes.length - 1].closed) {
             prepend = nodes.pop()
           }
           if (nodes.length) {
@@ -291,7 +293,7 @@ class Node {
     }
   }
 
-  async bulk (bulk, opts={}) {
+  async bulk (bulk, opts = {}) {
     const { BranchClass, BranchEntryClass } = opts
     const entryOptions = {
       codec: this.codec,
@@ -318,7 +320,7 @@ class Node {
       const entries = await Promise.all(results.nodes.map(mapper))
       results.nodes = await Node.from({ entries, NodeClass: BranchClass, distance, ...nodeOptions })
     }
-    const [ root ] = results.nodes
+    const [root] = results.nodes
     await onBranch(root)
     return { ...results, root }
   }

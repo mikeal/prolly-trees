@@ -13,7 +13,7 @@ const validate = (node, check) => {
   same(node.distance, check.distance)
 }
 
-const entry = key => new Entry({key})
+const entry = key => new Entry({ key })
 const entries = [
   entry(0),
   entry(1),
@@ -67,7 +67,7 @@ describe('base', () => {
   })
   it('entryList findMany', () => {
     const results = entryListFixture.findMany([1, 3, 5], compare)
-    const mapper = key => [ key, results.get(key)[0].key, ...results.get(key)[1] ]
+    const mapper = key => [key, results.get(key)[0].key, ...results.get(key)[1]]
     const comp = [...results.keys()].sort(compare).map(mapper)
     same(comp, [[1, 1, 1], [3, 3, 3], [5, 5, 5]])
   })

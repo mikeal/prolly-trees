@@ -85,7 +85,7 @@ describe('map', () => {
     }
     const entries = await root.getEntries(['a', 'zz'])
     same(entries.length, 2)
-    const [ a, zz ] = entries
+    const [a, zz] = entries
     same(a.key, 'a')
     same(a.value, 1)
     same(zz.key, 'zz')
@@ -128,7 +128,7 @@ describe('map', () => {
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
-    let entries = await root.getAllEntries()
+    const entries = await root.getAllEntries()
     verify(entries)
   })
   it('bulk insert 2', async () => {
@@ -144,9 +144,9 @@ describe('map', () => {
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
-    let entries = await last.getAllEntries()
+    const entries = await last.getAllEntries()
     verify(entries)
-    const bulk = [ { key: 'dd', value: 2 }, { key: 'd', value: -1 } ]
+    const bulk = [{ key: 'dd', value: 2 }, { key: 'd', value: -1 }]
     const { blocks, root, previous } = await last.bulk(bulk)
     await Promise.all(blocks.map(block => put(block)))
     same(await root.get('dd'), 2)
@@ -162,7 +162,7 @@ describe('map', () => {
       ['z', 1],
       ['zz', 2]
     ]
-    for (const [ key, value ] of expected) {
+    for (const [key, value] of expected) {
       same(await root.get(key), value)
     }
   })
@@ -186,20 +186,20 @@ describe('map', () => {
     i = -1
     const verify = (entries, start, end) => {
       let count = 0
-      const _expected = [ ...expected ]
+      const _expected = [...expected]
       for (const { key, value } of entries) {
-        same(value, i.toString() === key ? false : true)
+        same(value, i.toString() !== key)
         same(_expected.shift(), key)
         count++
       }
       same(count, 100)
     }
-    let entries = await last.getAllEntries()
+    const entries = await last.getAllEntries()
     verify(entries)
     const base = last
     i++
     while (i < 100) {
-      const bulk = [ { key: i.toString(), value: false } ]
+      const bulk = [{ key: i.toString(), value: false }]
       const { blocks, root, previous } = await base.bulk(bulk)
       await Promise.all(blocks.map(block => put(block)))
       verify(await root.getAllEntries())
@@ -218,7 +218,7 @@ describe('map', () => {
       i++
     }
     expected = expected.sort()
-    for await (const node of create({ get, compare, list, ...opts})) {
+    for await (const node of create({ get, compare, list, ...opts })) {
       const address = await node.address
       await put(await node.block)
       last = node
@@ -226,7 +226,7 @@ describe('map', () => {
     i = -1
     const verify = (entries, start, end) => {
       let count = 0
-      const _expected = [ ...expected ]
+      const _expected = [...expected]
       for (const { key, value } of entries) {
         same(value, true)
         let exp = _expected.shift()
@@ -236,12 +236,12 @@ describe('map', () => {
       }
       same(count, i === -1 ? 100 : 99)
     }
-    let entries = await last.getAllEntries()
+    const entries = await last.getAllEntries()
     verify(entries)
     const base = last
     i++
     while (i < 100) {
-      const bulk = [ { key: i.toString(), del: true } ]
+      const bulk = [{ key: i.toString(), del: true }]
       const { blocks, root, previous } = await base.bulk(bulk)
       await Promise.all(blocks.map(block => put(block)))
       verify(await root.getAllEntries())
@@ -268,13 +268,13 @@ describe('map', () => {
     const front = [...expected]
     const back = [...expected]
     while (front.length) {
-      const entries = await last.getRangeEntries(front[0], front[front.length -1] + '999')
-      same(entries.map(({key}) => key), front)
+      const entries = await last.getRangeEntries(front[0], front[front.length - 1] + '999')
+      same(entries.map(({ key }) => key), front)
       front.shift()
     }
     while (front.length) {
-      const entries = await last.getRangeEntries(back[0], back[back.length -1] + '.')
-      same(entries.map(({key}) => key), back)
+      const entries = await last.getRangeEntries(back[0], back[back.length - 1] + '.')
+      same(entries.map(({ key }) => key), back)
       back.pop()
     }
 

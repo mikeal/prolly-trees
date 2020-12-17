@@ -41,11 +41,11 @@ const createPersons2 = `CREATE TABLE Persons2 (
   City varchar(255)
 )`
 
-const insertOnlyId = `INSERT INTO Persons (PersonID) VALUES (4006)`
-const insertFullRow = `INSERT INTO Persons VALUES (12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco')`
-const insertTwoRows = insertFullRow + `, (13, 'Rogers', 'NotMikeal', '241 AVB', 'San Francisco')`
+const insertOnlyId = 'INSERT INTO Persons (PersonID) VALUES (4006)'
+const insertFullRow = 'INSERT INTO Persons VALUES (12, \'Rogers\', \'Mikeal\', \'241 BVA\', \'San Francisco\')'
+const insertTwoRows = insertFullRow + ', (13, \'Rogers\', \'NotMikeal\', \'241 AVB\', \'San Francisco\')'
 
-const runSQL = async (q, database=Database.create(), store=storage()) => {
+const runSQL = async (q, database = Database.create(), store = storage()) => {
   const iter = database.sql(q, { chunker })
 
   let last
@@ -60,22 +60,27 @@ const runSQL = async (q, database=Database.create(), store=storage()) => {
 
 const verifyPersonTable = table => {
   const expected = [
-    { name: 'PersonID',
+    {
+      name: 'PersonID',
       dataType: 'INT'
     },
-    { name: 'LastName',
+    {
+      name: 'LastName',
       dataType: 'VARCHAR',
       length: 255
     },
-    { name: 'FirstName',
+    {
+      name: 'FirstName',
       dataType: 'VARCHAR',
       length: 255
     },
-    { name: 'Address',
+    {
+      name: 'Address',
       dataType: 'VARCHAR',
       length: 255
     },
-    { name: 'City',
+    {
+      name: 'City',
       dataType: 'VARCHAR',
       length: 255
     }
@@ -115,8 +120,8 @@ describe('sql', () => {
     }
   })
 
-  const onlyFirstRow = [ [ 12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco' ] ]
-  const onlySecondRow = [ [ 13, 'Rogers', 'NotMikeal', '241 AVB', 'San Francisco'] ]
+  const onlyFirstRow = [[12, 'Rogers', 'Mikeal', '241 BVA', 'San Francisco']]
+  const onlySecondRow = [[13, 'Rogers', 'NotMikeal', '241 AVB', 'San Francisco']]
 
   it('select all columns', async () => {
     const { database, store } = await runSQL(createPersons)
@@ -149,7 +154,7 @@ describe('sql', () => {
     const { database: db } = await runSQL(insertFullRow, database, store)
     const result = db.sql('SELECT FirstName, LastName FROM Persons')
     const all = await result.all()
-    same(all, [ [ 'Mikeal', 'Rogers' ] ])
+    same(all, [['Mikeal', 'Rogers']])
   })
 
   it('select * where (string comparison)', async () => {
@@ -225,12 +230,12 @@ describe('sql', () => {
   })
 
   it('select * where (int ranges)', async () => {
-    const create = `CREATE TABLE Test ( ID int )`
+    const create = 'CREATE TABLE Test ( ID int )'
     const { database, store } = await runSQL(create)
     const values = [...Array(10).keys()].map(k => `(${k})`).join(', ')
     const inserts = `INSERT INTO Test VALUES ${values}`
     const { database: db } = await runSQL(inserts, database, store)
-    let pre = 'SELECT * FROM Test WHERE '
+    const pre = 'SELECT * FROM Test WHERE '
     let result = db.sql(pre + 'ID > 1 AND ID < 3')
     let all = await result.all()
     same(all, [[2]])
@@ -240,12 +245,12 @@ describe('sql', () => {
   })
 
   it('select * where (string ranges)', async () => {
-    const create = `CREATE TABLE Test ( Name varchar(255) )`
+    const create = 'CREATE TABLE Test ( Name varchar(255) )'
     const { database, store } = await runSQL(create)
     const values = ['a', 'b', 'c', 'd', 'e', 'f'].map(k => `("${k}")`).join(', ')
     const inserts = `INSERT INTO Test VALUES ${values}`
     const { database: db } = await runSQL(inserts, database, store)
-    let pre = 'SELECT * FROM Test WHERE '
+    const pre = 'SELECT * FROM Test WHERE '
     let result = db.sql(pre + 'Name > "a" AND Name < "c"')
     let all = await result.all()
     same(all, [['b']])
@@ -255,12 +260,12 @@ describe('sql', () => {
   })
 
   it('select * where (int range operators)', async () => {
-    const create = `CREATE TABLE Test ( ID int )`
+    const create = 'CREATE TABLE Test ( ID int )'
     const { database, store } = await runSQL(create)
     const values = [...Array(10).keys()].map(k => `(${k})`).join(', ')
     const inserts = `INSERT INTO Test VALUES ${values}`
     const { database: db } = await runSQL(inserts, database, store)
-    let pre = 'SELECT * FROM Test WHERE '
+    const pre = 'SELECT * FROM Test WHERE '
     let result = db.sql(pre + 'ID < 3')
     let all = await result.all()
     same(all, [[0], [1], [2]])
@@ -273,16 +278,15 @@ describe('sql', () => {
     result = db.sql(pre + 'ID >= 9')
     all = await result.all()
     same(all, [[9]])
-
   })
 
   it('select * where (string range operators)', async () => {
-    const create = `CREATE TABLE Test ( Name varchar(255) )`
+    const create = 'CREATE TABLE Test ( Name varchar(255) )'
     const { database, store } = await runSQL(create)
     const values = ['a', 'b', 'c', 'd', 'e', 'f'].map(k => `("${k}")`).join(', ')
     const inserts = `INSERT INTO Test VALUES ${values}`
     const { database: db } = await runSQL(inserts, database, store)
-    let pre = 'SELECT * FROM Test WHERE '
+    const pre = 'SELECT * FROM Test WHERE '
     let result = db.sql(pre + 'Name > "e"')
     let all = await result.all()
     same(all, [['f']])
@@ -298,17 +302,17 @@ describe('sql', () => {
   })
 
   it('select * where (ORDER BY int)', async () => {
-    const create = `CREATE TABLE Test ( Name varchar(255), Id int )`
+    const create = 'CREATE TABLE Test ( Name varchar(255), Id int )'
     const { database, store } = await runSQL(create)
     let i = 0
     const values = ['a', 'b', 'c', 'd', 'e', 'f'].reverse().map(k => `("${k}", ${i++})`).join(', ')
     const inserts = `INSERT INTO Test VALUES ${values}`
     const { database: db } = await runSQL(inserts, database, store)
-    let pre = 'SELECT * FROM Test WHERE '
-    let query = pre + 'Name > "a" AND Name < "f" ORDER BY Id'
+    const pre = 'SELECT * FROM Test WHERE '
+    const query = pre + 'Name > "a" AND Name < "f" ORDER BY Id'
     let result = db.sql(query)
     let all = await result.all()
-    let expected = [ ['e', 1], ['d', 2], ['c', 3], ['b', 4] ]
+    const expected = [['e', 1], ['d', 2], ['c', 3], ['b', 4]]
     same(all, expected)
     result = db.sql(query + ' DESC')
     all = await result.all()
@@ -316,17 +320,17 @@ describe('sql', () => {
   })
 
   it('select * where (ORDER BY string)', async () => {
-    const create = `CREATE TABLE Test ( Name varchar(255), Id int )`
+    const create = 'CREATE TABLE Test ( Name varchar(255), Id int )'
     const { database, store } = await runSQL(create)
     let i = 0
     const values = ['a', 'b', 'c', 'd', 'e', 'f'].reverse().map(k => `("${k}", ${i++})`).join(', ')
     const inserts = `INSERT INTO Test VALUES ${values}`
     const { database: db } = await runSQL(inserts, database, store)
-    let pre = 'SELECT * FROM Test WHERE '
-    let query = pre + 'Id > 1 AND Id < 5 ORDER BY Name'
+    const pre = 'SELECT * FROM Test WHERE '
+    const query = pre + 'Id > 1 AND Id < 5 ORDER BY Name'
     let result = db.sql(query)
     let all = await result.all()
-    let expected = [ ['b', 4], ['c', 3], ['d', 2] ]
+    const expected = [['b', 4], ['c', 3], ['d', 2]]
     same(all, expected)
     result = db.sql(query + ' DESC')
     all = await result.all()

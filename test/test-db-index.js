@@ -88,13 +88,12 @@ describe('db index', () => {
     const { get, put } = storage()
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
-      const address = await node.address
       await put(await node.block)
       root = node
     }
     const verify = (entries, start, end) => {
       const comp = list.slice(start, end).map(entry => {
-        const [ id, key] = entry.key
+        const [id, key] = entry.key
         return { id, key, row: entry.value }
       })
       same(entries, comp)
@@ -121,7 +120,7 @@ describe('db index', () => {
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
-    let entries = await root.getAllEntries()
+    const entries = await root.getAllEntries()
     verify(entries)
   })
   /*

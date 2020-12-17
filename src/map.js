@@ -40,10 +40,12 @@ class MapLeaf extends IPLDLeaf {
   get (key) {
     return getValue(this, key)
   }
+
   getMany (keys) {
     return getManyValues(this, keys)
   }
-  bulk (bulk, opts={}) {
+
+  bulk (bulk, opts = {}) {
     return super.bulk(bulk, { ...classes, ...opts })
   }
 }
@@ -51,10 +53,12 @@ class MapBranch extends IPLDBranch {
   get (key) {
     return getValue(this, key)
   }
+
   getMany (keys) {
     return getManyValues(this, keys)
   }
-  bulk (bulk, opts={}) {
+
+  bulk (bulk, opts = {}) {
     return super.bulk(bulk, { ...classes, ...opts })
   }
 }
