@@ -4,7 +4,7 @@ import { create } from '../src/db-index.js'
 import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { nocache } from '../src/cache.js'
-import { bf, simpleCompare as compare } from '../src/utils.js'
+import { bf } from '../src/utils.js'
 import { CID } from 'multiformats'
 
 const chunker = bf(3)
@@ -67,7 +67,9 @@ describe('db index', () => {
       [undefined, true, 2, false]
     ].map(([isLeaf, isBranch, entries, closed]) => ({ isLeaf, isBranch, entries, closed }))
     let root
-    for await (const node of create({ get, compare, list, ...opts })) {
+    let leaf
+    for await (const node of create({ get, list, ...opts })) {
+      if (node.isLeaf) leaf = node
       const address = await node.address
       same(address.asCID, address)
       verify(checks.shift(), node)
@@ -83,11 +85,18 @@ describe('db index', () => {
       const result = await root.get(key[0])
       same(result, expected)
     }
+    let [ result ] = await leaf.get('zz')
+    same(result.id, 9)
+    const results = await leaf.range('z', 'zzzzz')
+    same(results.length, 1)
+    result = results[0]
+    same(result.id, 'zz')
+    same(result.key, 9)
   })
   it('range', async () => {
     const { get, put } = storage()
     let root
-    for await (const node of create({ get, compare, list, ...opts })) {
+    for await (const node of create({ get, list, ...opts })) {
       await put(await node.block)
       root = node
     }
@@ -110,7 +119,7 @@ describe('db index', () => {
   it('getAllEntries', async () => {
     const { get, put } = storage()
     let root
-    for await (const node of create({ get, compare, list, ...opts })) {
+    for await (const node of create({ get, list, ...opts })) {
       const address = await node.address
       await put(await node.block)
       root = node
