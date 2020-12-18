@@ -329,6 +329,8 @@ class Node {
       }
       const entries = await Promise.all(results.nodes.map(mapper))
       results.nodes = await Node.from({ entries, NodeClass: BranchClass, distance, ...nodeOptions })
+      const promises = results.nodes.map(node => node.encode())
+      ;(await Promise.all(promises)).forEach(b => results.blocks.push(b))
     }
     const [root] = results.nodes
     await onBranch(root)
