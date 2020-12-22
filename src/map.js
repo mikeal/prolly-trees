@@ -98,7 +98,7 @@ const createGetNode = (get, cache, chunker, codec, hasher, compare, opts) => {
     }
     const entryList = new EntryList({ entries, closed: value.closed })
     const node = new CLS({ entryList, ...opts })
-    cache.set(block.cid, node)
+    cache.set(node)
     return node
   }
   const getNode = async cid => {
