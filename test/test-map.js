@@ -82,7 +82,8 @@ describe('map', () => {
       await put(await node.block)
       root = node
     }
-    const { result: entries } = await root.getEntries(['a', 'zz'])
+    const { result: entries, cids } = await root.getEntries(['a', 'zz'])
+    same((await cids.all()).size, 5)
     same(entries.length, 2)
     const [a, zz] = entries
     same(a.key, 'a')

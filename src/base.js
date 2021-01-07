@@ -123,7 +123,7 @@ class Node {
 
   async getEntry (key, cids = new CIDCounter()) {
     const result = await this._getEntry(key, cids)
-    return { result, cids: await cids.all() }
+    return { result, cids }
   }
 
   async _getEntry (key, cids) {
@@ -144,7 +144,7 @@ class Node {
 
   async getAllEntries (cids = new CIDCounter()) {
     const result = await this._getAllEntries(cids)
-    return { result, cids: await cids.all() }
+    return { result, cids }
   }
 
   _getAllEntries (cids) {
@@ -160,7 +160,7 @@ class Node {
 
   async getEntries (keys, sorted = false, cids = new CIDCounter()) {
     const result = await this._getEntries(keys, sorted, cids)
-    return { result, cids: await cids.all() }
+    return { result, cids }
   }
 
   async _getEntries (keys, sorted, cids) {
@@ -181,7 +181,7 @@ class Node {
 
   async getRangeEntries (start, end, cids = new CIDCounter()) {
     const result = await this._getRangeEntries(start, end, cids)
-    return { result, cids: await cids.all() }
+    return { result, cids }
   }
 
   _getRangeEntries (start, end, cids) {
