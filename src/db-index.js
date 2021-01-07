@@ -12,18 +12,19 @@ const compare = (a, b) => {
 const getIndex = async (node, key) => {
   const start = [key, 0]
   const end = [key, Infinity]
-  const entries = await node.getRangeEntries(start, end)
-  return entries.map(entry => ({ id: entry.key[1], row: entry.value }))
+  const { result: entries, cids } = await node.getRangeEntries(start, end)
+  return { result: entries.map(entry => ({ id: entry.key[1], row: entry.value })), cids }
 }
 
 const getRange = async (node, start, end) => {
   start = [start, 0]
   end = [end, Infinity]
-  const entries = await node.getRangeEntries(start, end)
-  return entries.map(entry => {
+  const { result: entries, cids } = await node.getRangeEntries(start, end)
+  const result = entries.map(entry => {
     const [id, key] = entry.key
     return { id, key, row: entry.value }
   })
+  return { result, cids }
 }
 
 class DBIndexLeaf extends MapLeaf {

@@ -1,4 +1,5 @@
 import { encode } from 'multiformats/block'
+import { CIDCounter } from './utils.js'
 
 class Entry {
   constructor ({ key, address }, opts = {}) {
@@ -120,13 +121,20 @@ class Node {
     return this.entryList.startKey
   }
 
-  async getEntry (key) {
+  async getEntry (key, cids = new CIDCounter()) {
+    const result = await this._getEntry(key, cids)
+    return { result, cids: await cids.all() }
+  }
+
+  async _getEntry (key, cids) {
+    cids.add(this)
     let node = this
     while (!node.isLeaf) {
       const result = node.entryList.find(key, this.compare)
       if (result === null) throw new Error('Not found')
       const [, entry] = result
       node = await this.getNode(await entry.address)
+      cids.add(node)
     }
     const result = node.entryList.find(key, this.compare)
     if (result === null) throw new Error('Not found')
@@ -134,17 +142,29 @@ class Node {
     return entry
   }
 
-  getAllEntries () {
+  async getAllEntries (cids = new CIDCounter()) {
+    const result = await this._getAllEntries(cids)
+    return { result, cids: await cids.all() }
+  }
+
+  _getAllEntries (cids) {
+    cids.add(this)
     if (this.isLeaf) {
       return this.entryList.entries
     } else {
       const { entries } = this.entryList
-      const mapper = async entry => this.getNode(await entry.address).then(node => node.getAllEntries())
+      const mapper = async entry => this.getNode(await entry.address).then(node => node._getAllEntries(cids))
       return Promise.all(entries.map(mapper)).then(results => results.flat())
     }
   }
 
-  async getEntries (keys, sorted = false) {
+  async getEntries (keys, sorted = false, cids = new CIDCounter()) {
+    const result = await this._getEntries(keys, sorted, cids)
+    return { result, cids: await cids.all() }
+  }
+
+  async _getEntries (keys, sorted, cids) {
+    cids.add(this)
     if (!sorted) keys = keys.sort(this.compare)
     const results = this.entryList.findMany(keys, this.compare, true, this.isLeaf)
     if (this.isLeaf) {
@@ -153,13 +173,19 @@ class Node {
     let entries = []
     for (const [entry, keys] of [...results.values()].reverse()) {
       const p = this.getNode(await entry.address)
-      entries.push(p.then(node => node.getEntries(keys.reverse(), true)))
+      entries.push(p.then(node => node._getEntries(keys.reverse(), true, cids)))
     }
     entries = await Promise.all(entries)
     return entries.flat()
   }
 
-  getRangeEntries (start, end) {
+  async getRangeEntries (start, end, cids = new CIDCounter()) {
+    const result = await this._getRangeEntries(start, end, cids)
+    return { result, cids: await cids.all() }
+  }
+
+  _getRangeEntries (start, end, cids) {
+    cids.add(this)
     const { entries } = this.entryList.findRange(start, end, this.compare)
     if (this.isLeaf) {
       return entries.filter(entry => {
@@ -172,7 +198,7 @@ class Node {
 
     if (!entries.length) return []
     const thenRange = async entry => this.getNode(await entry.address).then(node => {
-      return node.getRangeEntries(start, end)
+      return node._getRangeEntries(start, end, cids)
     })
     const results = [thenRange(entries.shift())]
 
@@ -180,8 +206,8 @@ class Node {
     const last = thenRange(entries.pop())
 
     while (entries.length) {
-      const thenAll = async entry => this.getNode(await entry.address).then(node => {
-        return node.getAllEntries()
+      const thenAll = async entry => this.getNode(await entry.address).then(async node => {
+        return node._getAllEntries(cids)
       })
       results.push(thenAll(entries.shift()))
     }
@@ -369,8 +395,8 @@ class IPLDNode extends Node {
   }
 
   async get (key) {
-    const entry = await this.getEntry(key)
-    return entry.key
+    const { result: entry, cids } = await this.getEntry(key)
+    return { result: entry.key, cids }
   }
 
   async encode () {

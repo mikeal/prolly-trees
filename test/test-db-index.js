@@ -82,14 +82,14 @@ describe('db index', () => {
         if (entry.key[0] !== key[0]) return null
         return { id: entry.key[1], row: entry.value }
       }).filter(x => x)
-      const result = await root.get(key[0])
+      const { result } = await root.get(key[0])
       same(result, expected)
     }
     const cid = await leaf.address
     root = await load({ cid, get, ...opts })
-    let [result] = await leaf.get('zz')
+    let { result: [result] } = await leaf.get('zz')
     same(result.id, 9)
-    const results = await leaf.range('z', 'zzzzz')
+    const { result: results } = await leaf.range('z', 'zzzzz')
     same(results.length, 1)
     result = results[0]
     same(result.id, 'zz')
@@ -109,13 +109,14 @@ describe('db index', () => {
       })
       same(entries, comp)
     }
-    let entries = await root.range('b', 'z')
+    const range = async (...args) => (await root.range(...args)).result
+    let entries = await range('b', 'z')
     verify(entries, 1, 8)
-    entries = await root.range('', 'zzz')
+    entries = await range('', 'zzz')
     verify(entries)
-    entries = await root.range('a', 'zz')
+    entries = await range('a', 'zz')
     verify(entries)
-    entries = await root.range('a', 'c')
+    entries = await range('a', 'c')
     verify(entries, 0, 5)
   })
   it('getAllEntries', async () => {
@@ -130,7 +131,7 @@ describe('db index', () => {
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
-    const entries = await root.getAllEntries()
+    const { result: entries } = await root.getAllEntries()
     verify(entries)
   })
   it('bulk', async () => {
@@ -147,13 +148,14 @@ describe('db index', () => {
     const { root, blocks } = await base.bulk(bulk)
     await Promise.all(blocks.map(b => put(b)))
     const ids = results => results.map(({ id }) => id)
-    same(ids(await root.get('a')), [0, 40])
-    same(ids(await root.get('b')), [1])
-    same(ids(await root.get('z')), [41])
+    const getval = async k => (await root.get(k)).result
+    same(ids(await getval('a')), [0, 40])
+    same(ids(await getval('b')), [1])
+    same(ids(await getval('z')), [41])
 
     bulk = [{ key: ['zz', 42], value }, { key: ['zz', 9], del: true }]
     const { root: newRoot, blocks: newBlocks } = await leaf.bulk(bulk)
     await Promise.all(newBlocks.map(b => put(b)))
-    same(ids(await newRoot.get('zz')), [42])
+    same(ids((await newRoot.get('zz')).result), [42])
   })
 })

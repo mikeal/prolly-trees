@@ -65,4 +65,31 @@ const binaryCompare = (b1, b2) => {
   return 0
 }
 
-export { readUInt32LE, enc32, bf, binaryCompare, simpleCompare }
+class CIDCounter {
+  constructor () {
+    this._cids = new Set()
+  }
+
+  add (node) {
+    /* c8 ignore next */
+    if (!node.address) {
+      /* c8 ignore next */
+      throw new Error('Cannot add node without address')
+      /* c8 ignore next */
+    }
+    if (node.address.then) {
+      const p = node.address.then(cid => this._cids.add(cid.toString()))
+      this._cids.add(p)
+      p.then(() => this._cids.delete(p))
+    } else {
+      this._cids.add(node.address.toString())
+    }
+  }
+
+  async all () {
+    await Promise.all([...this._cids])
+    return this._cids
+  }
+}
+
+export { readUInt32LE, enc32, bf, binaryCompare, simpleCompare, CIDCounter }

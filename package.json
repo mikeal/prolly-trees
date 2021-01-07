@@ -27,6 +27,7 @@
     "standard": "^16.0.3"
   },
   "dependencies": {
+    "bl": "^4.0.3",
     "node-sql-parser": "^3.1.0"
   },
   "exports": {

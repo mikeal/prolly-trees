@@ -71,7 +71,7 @@ describe('sparse array', () => {
     const cid = await root.address
     root = await load({ cid, get, compare, ...opts })
     for (const { key } of list) {
-      same(await root.get(key), v)
+      same((await root.get(key)).result, v)
     }
   })
   it('getEntries & getMany', async () => {
@@ -81,14 +81,14 @@ describe('sparse array', () => {
       await put(await node.block)
       root = node
     }
-    const entries = await root.getEntries([2, 10000])
+    const { result: entries } = await root.getEntries([2, 10000])
     same(entries.length, 2)
     const [a, b] = entries
     same(a.key, 2)
     same(a.value, v)
     same(b.key, 10000)
     same(b.value, v)
-    const values = await root.getMany([2, 10000])
+    const { result: values } = await root.getMany([2, 10000])
     same(values, [v, v])
   })
   it('getRangeEntries', async () => {
@@ -103,13 +103,14 @@ describe('sparse array', () => {
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
-    let entries = await root.getRangeEntries(2, 400)
+    const range = async (...args) => (await root.getRangeEntries(...args)).result
+    let entries = await range(2, 400)
     verify(entries, 1, 9)
-    entries = await root.getRangeEntries(0, 99999)
+    entries = await range(0, 99999)
     verify(entries)
-    entries = await root.getRangeEntries(1, 10000)
+    entries = await range(1, 10000)
     verify(entries, 0, 9)
-    entries = await root.getRangeEntries(1, 15)
+    entries = await range(1, 15)
     verify(entries, 0, 3)
     same(await root.getLength(), 10001)
   })
@@ -126,9 +127,9 @@ describe('sparse array', () => {
     same(await root.getLength(), 10001)
     const { blocks, root: lRoot } = await leaf.bulk([{ key: 10001, value: 'test' }])
     await Promise.all(blocks.map(put))
-    same(await lRoot.get(10001), 'test')
+    same((await lRoot.get(10001)).result, 'test')
     const { blocks: _blocks, root: bRoot } = await root.bulk([{ key: 10001, value: 'test2' }])
     await Promise.all(_blocks.map(put))
-    same(await bRoot.get(10001), 'test2')
+    same((await bRoot.get(10001)).result, 'test2')
   })
 })

@@ -81,7 +81,8 @@ describe('cid set', () => {
       }
       root = await root.getNode(await root.address)
       for (const cid of list) {
-        same(await root.get(cid), cid)
+        const { result } = await root.get(cid)
+        same(result, cid)
       }
     })
   }
