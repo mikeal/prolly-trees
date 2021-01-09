@@ -1,6 +1,6 @@
 /* globals describe, it */
 import { deepStrictEqual as same } from 'assert'
-import { create } from '../src/cid-set.js'
+import { create, load } from '../src/cid-set.js'
 import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { CID } from 'multiformats'
@@ -77,9 +77,15 @@ describe('cid set', () => {
         same(address.asCID, address)
         verify(checks.shift(), node)
         await put(await node.block)
+        const n = await node.getNode(await node.address)
+        same(address.toString(), (await n.address).toString())
         root = node
       }
-      root = await root.getNode(await root.address)
+      const cid = await root.address
+      root = await root.getNode(cid)
+      same(cid.toString(), (await root.address).toString())
+      root = await load({ cid, get, cache, ...opts })
+      same(cid.toString(), (await root.address).toString())
       for (const cid of list) {
         const { result } = await root.get(cid)
         same(result, cid)

@@ -32,7 +32,7 @@ class CIDSetBranch extends IPLDBranch {
 class CIDSetLeaf extends IPLDLeaf {
 }
 
-const createGetNode = (get, cache, chunker, codec, hasher, compare) => {
+const createGetNode = (get, cache, chunker, codec, hasher) => {
   const decoder = block => {
     const { value } = block
     const opts = { chunker, cache, block, getNode, codec, hasher, compare }
@@ -65,7 +65,7 @@ const createGetNode = (get, cache, chunker, codec, hasher, compare) => {
 
 const create = ({ get, cache, chunker, list, codec, hasher, sorted }) => {
   if (!sorted) list = list.sort(compare)
-  const getNode = createGetNode(get, cache, chunker, codec, hasher, compare)
+  const getNode = createGetNode(get, cache, chunker, codec, hasher)
   const opts = {
     list,
     codec,
@@ -83,4 +83,9 @@ const create = ({ get, cache, chunker, list, codec, hasher, sorted }) => {
   return baseCreate(opts)
 }
 
-export { create }
+const load = ({ cid, get, cache, chunker, codec, hasher, ...opts }) => {
+  const getNode = createGetNode(get, cache, chunker, codec, hasher, opts)
+  return getNode(cid)
+}
+
+export { create, load }
