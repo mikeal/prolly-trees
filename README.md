@@ -1,5 +1,9 @@
 # Chunky Trees
 
+Implementation of [peer-to-peer b-trees](https://0fps.net/2020/12/19/peer-to-peer-ordered-search-indexes/) which
+are similar (almost identical) to [prolly trees](https://www.dolthub.com/blog/2020-04-01-how-dolt-stores-table-data/)
+used in dolt and noms.
+
 While this library has 100% test coverage and is relatively stable, it's
 not recommended for broad use. The implementation internals are all very
 exposed and have not been properly documented. Without thorough documentation
