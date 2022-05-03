@@ -1,7 +1,6 @@
 # Prolly Trees
 
-Implementation of [peer-to-peer b-trees](https://0fps.net/2020/12/19/peer-to-peer-ordered-search-indexes/) which
-are [prolly trees](https://www.dolthub.com/blog/2020-04-01-how-dolt-stores-table-data/) as
+Implementation of [peer-to-peer search trees](https://0fps.net/2020/12/19/peer-to-peer-ordered-search-indexes/) [(probabalistic b-trees trees)](https://www.dolthub.com/blog/2020-04-01-how-dolt-stores-table-data/) as
 used in dolt and noms.
 
 While this library has 100% test coverage and is relatively stable, it's
@@ -13,6 +12,10 @@ storage.
 Some time in the near future I will fully document the library.
 
 # Notes
+
+This is *just* an implementation of the trees. It does not have an opinion about
+how blocks are encoded and hashed. The tests use a `dag-cbor` IPLD encoder, and
+the library is typically encoded into IPLD in other libraries.
 
 ## ranges
 
