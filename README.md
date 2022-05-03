@@ -1,4 +1,4 @@
-# Chunky Trees
+# Prolly Trees
 
 Implementation of [peer-to-peer b-trees](https://0fps.net/2020/12/19/peer-to-peer-ordered-search-indexes/) which
 are [prolly trees](https://www.dolthub.com/blog/2020-04-01-how-dolt-stores-table-data/) as
