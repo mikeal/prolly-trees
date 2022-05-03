@@ -16,7 +16,7 @@
   "keywords": [],
   "author": "Mikeal Rogers <mikeal.rogers@gmail.com> (https://www.mikealrogers.com/)",
   "license": "(Apache-2.0 AND MIT)",
-  "description": "",
+  "description": "Implementation of [peer-to-peer b-trees](https://0fps.net/2020/12/19/peer-to-peer-ordered-search-indexes/) which are [prolly trees](https://www.dolthub.com/blog/2020-04-01-how-dolt-stores-table-data/) as used in dolt and noms.",
   "devDependencies": {
     "@ipld/dag-cbor": "^2.0.3",
     "assert-polyfill": "^0.0.0",
@@ -51,5 +51,17 @@
     "./utils": {
       "import": "./src/utils.js"
     }
-  }
+  },
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mikeal/prolly-trees.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mikeal/prolly-trees/issues"
+  },
+  "homepage": "https://github.com/mikeal/prolly-trees#readme"
 }
