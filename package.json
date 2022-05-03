@@ -9,7 +9,7 @@
     "test:node-v12": "mocha test/test-*.js",
     "test:cjs": "npm run build && mocha dist/cjs/node-test/test-*.js",
     "test:node": "hundreds mocha test/test-*.js",
-    "test:browser": "polendina --cleanup dist/cjs/node-test/test-*.js",
+    "test:browser": "polendina --cleanup dist/cjs/node-test/test-*.js --webpack-config test/polendina-webpack.config.cjs",
     "test": "npm run lint && npm run test:node && npm run test:cjs && npm run test:browser",
     "coverage": "c8 --reporter=html mocha test/test-*.js && npm_config_yes=true npx st -d coverage -p 8080"
   },
@@ -19,11 +19,13 @@
   "description": "",
   "devDependencies": {
     "@ipld/dag-cbor": "^2.0.3",
+    "assert-polyfill": "^0.0.0",
     "c8": "^7.3.5",
     "hundreds": "^0.0.9",
     "mocha": "^8.2.1",
     "multiformats": "^4.4.1",
-    "polendina": "^1.1.0",
+    "polendina": "^3.0.0",
+    "node-polyfill-webpack-plugin": "^1.1.4",
     "standard": "^16.0.3"
   },
   "dependencies": {
