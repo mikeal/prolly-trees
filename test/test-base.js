@@ -65,6 +65,16 @@ describe('base', () => {
     same(i, 1)
     same(entry.key, 1)
   })
+  it('entryList find missing should error', () => {
+    let threw = true
+    try {
+      entryListFixture.find(9, compare)
+      threw = false
+    } catch (e) {
+      if (e.message !== 'Not found') throw e
+    }
+    same(threw, true)
+  })
   it('entryList findMany', () => {
     const results = entryListFixture.findMany([1, 3, 5], compare)
     const mapper = key => [key, results.get(key)[0].key, ...results.get(key)[1]]
