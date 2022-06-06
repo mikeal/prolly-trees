@@ -3,6 +3,11 @@ import { deepStrictEqual as same } from 'assert'
 import { Node, Entry, EntryList, create } from '../src/base.js'
 import { simpleCompare as compare } from '../src/utils.js'
 
+const loggingCompare = (a, b) => {
+  console.log('comp', a, b, (a === b || a > b))
+  return compare(a, b)
+}
+
 const chunker = entry => entry.address
 
 const mapper = value => ({ key: value, address: value })
@@ -60,20 +65,25 @@ describe('base', () => {
     }
     same(threw, true)
   })
-  it('entryList find', () => {
-    const [i, entry] = entryListFixture.find(1, compare)
+  it('entryList find first', () => {
+    const [i, entry] = entryListFixture.find(1, loggingCompare)
     same(i, 1)
     same(entry.key, 1)
   })
-  it('entryList find missing should error', () => {
-    let threw = true
-    try {
-      entryListFixture.find(9, compare)
-      threw = false
-    } catch (e) {
-      if (e.message !== 'Not found') throw e
-    }
-    same(threw, true)
+  it('entryList find middle', () => {
+    const [i, entry] = entryListFixture.find(3, loggingCompare)
+    same(i, 3)
+    same(entry.key, 3)
+  })
+  it('entryList find end', () => {
+    const [i, entry] = entryListFixture.find(8, loggingCompare)
+    same(i, 8)
+    same(entry.key, 8)
+  })
+  it('entryList find missing should return null', () => {
+    const [i, entry] = entryListFixture.find(11, loggingCompare)
+    same(i, 8)
+    same(entry, null)
   })
   it('entryList findMany', () => {
     const results = entryListFixture.findMany([1, 3, 5], compare)

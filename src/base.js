@@ -28,7 +28,10 @@ class EntryList {
       const entry = entries[i]
       const comp = compare(key, entry.key)
       if (comp > -1) {
-        return [i, entry]
+        const comp2 = compare(entry.key, key)
+        if (comp2 < 1) {
+          return [i, entry]
+        }
       }
     }
     return null
