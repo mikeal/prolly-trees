@@ -77,12 +77,19 @@ describe('map', () => {
     // find missing
     let threw = true
     try {
+      await root.getEntry('.')
+      threw = false
+    } catch (e) {
+      if (!/Not found/.test(e.message)) throw e
+    }
+    same(threw, true, 'should have thrown Not Found: .')
+    try {
       await root.getEntry('bbb')
       threw = false
     } catch (e) {
       if (!/Not found/.test(e.message)) throw e
     }
-    same(threw, true, 'should have thrown Not Found')
+    same(threw, true, 'should have thrown Not Found: bbb')
   })
   it('getEntries & getMany', async () => {
     const { get, put } = storage()
