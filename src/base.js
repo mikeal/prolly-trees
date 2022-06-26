@@ -26,7 +26,7 @@ class EntryList {
     const { entries } = this
     for (let i = entries.length - 1; i > -1; i--) {
       const entry = entries[i]
-      console.log('find ' + key, entry.key)
+      // console.log('find ' + key, entry.key)
       const comp = compare(key, entry.key)
       if (comp > -1) {
       // if (comp === 0) {
