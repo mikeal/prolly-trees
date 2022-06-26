@@ -74,6 +74,15 @@ describe('map', () => {
     for (const { key } of list) {
       same((await root.get(key)).result, key.length)
     }
+    // find missing
+    let threw = true
+    try {
+      await root.getEntry('bbb')
+      threw = false
+    } catch (e) {
+      if (!/Not found/.test(e.message)) throw e
+    }
+    same(threw, true, 'should have thrown Not Found')
   })
   it('getEntries & getMany', async () => {
     const { get, put } = storage()
