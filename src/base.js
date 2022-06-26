@@ -26,12 +26,14 @@ class EntryList {
     const { entries } = this
     for (let i = entries.length - 1; i > -1; i--) {
       const entry = entries[i]
+      console.log('find ' + key, entry.key)
       const comp = compare(key, entry.key)
       if (comp > -1) {
+      // if (comp === 0) {
         return [i, entry]
       }
     }
-    return null
+    return [null, null]
   }
 
   findMany (keys, compare, sorted = false, strict = false) {
@@ -131,14 +133,14 @@ class Node {
     let node = this
     while (!node.isLeaf) {
       const result = node.entryList.find(key, this.compare)
-      if (result === null) throw new Error('Not found')
       const [, entry] = result
+      if (entry === null) throw new Error('Not found: ' + key)
       node = await this.getNode(await entry.address)
       cids.add(node)
     }
     const result = node.entryList.find(key, this.compare)
-    if (result === null) throw new Error('Not found')
     const [, entry] = result
+    if (entry === null) throw new Error('Not found: ' + key)
     return entry
   }
 

@@ -301,14 +301,14 @@ describe('map', () => {
       await root.getEntry('.')
       threw = false
     } catch (e) {
-      if (e.message !== 'Not found') throw e
+      if (!/Not found/.test(e.message)) throw e
     }
     same(threw, true)
     try {
       await leaf.getEntry('.')
       threw = false
     } catch (e) {
-      if (e.message !== 'Not found') throw e
+      if (!/Not found/.test(e.message)) throw e
     }
     same(threw, true)
   })
