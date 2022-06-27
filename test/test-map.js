@@ -80,14 +80,14 @@ describe('map', () => {
       await root.getEntry('.')
       threw = false
     } catch (e) {
-      if (!/Not found/.test(e.message)) throw e
+      if (e.message !== 'Not found: .') throw e
     }
     same(threw, true, 'should have thrown Not Found: .')
     try {
       await root.getEntry('bbb')
       threw = false
     } catch (e) {
-      if (!/Not found/.test(e.message)) throw e
+      if (e.message !== 'Not found: bbb') throw e
     }
     same(threw, true, 'should have thrown Not Found: bbb')
   })
