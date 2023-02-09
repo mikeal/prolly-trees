@@ -65,6 +65,21 @@ describe('base', () => {
     same(i, 1)
     same(entry.key, 1)
   })
+  it('entryList find middle', () => {
+    const [i, entry] = entryListFixture.find(3, compare)
+    same(i, 3)
+    same(entry.key, 3)
+  })
+  it('entryList find end', () => {
+    const [i, entry] = entryListFixture.find(8, compare)
+    same(i, 8)
+    same(entry.key, 8)
+  })
+  it('entryList find missing should return null', () => {
+    const [i, entry] = entryListFixture.find(11, compare)
+    same(i, null)
+    same(entry, null)
+  })
   it('entryList findMany', () => {
     const results = entryListFixture.findMany([1, 3, 5], compare)
     const mapper = key => [key, results.get(key)[0].key, ...results.get(key)[1]]
