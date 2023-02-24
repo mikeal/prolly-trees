@@ -311,6 +311,13 @@ describe('map', () => {
       if (e.message !== 'Not found') throw e
     }
     same(threw, true)
+    try {
+      await root.getEntry('missing')
+      threw = false
+    } catch (e) {
+      if (e.message !== 'Not found') throw e
+    }
+    same(threw, true)
   })
   it('leaf', async () => {
     const { get, put } = storage()
