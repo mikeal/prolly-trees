@@ -137,7 +137,8 @@ class Node {
       cids.add(node)
     }
     const result = node.entryList.find(key, this.compare)
-    if (result === null) throw new Error('Not found')
+    if (result === null ||
+      (result[1].key.toString() !== key.toString())) throw new Error('Not found')
     const [, entry] = result
     return entry
   }
