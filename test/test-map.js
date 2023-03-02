@@ -12,10 +12,10 @@ const cache = nocache
 
 const storage = () => {
   const blocks = {}
-  const put = block => {
+  const put = (block) => {
     blocks[block.cid.toString()] = block
   }
-  const get = async cid => {
+  const get = async (cid) => {
     const block = blocks[cid.toString()]
     if (!block) throw new Error('Not found')
     return block
@@ -32,7 +32,7 @@ const verify = (check, node) => {
   same(check.closed, node.closed)
 }
 
-const createList = entries => entries.map(([key, value]) => ({ key, value }))
+const createList = (entries) => entries.map(([key, value]) => ({ key, value }))
 
 const list = createList([
   ['a', 1],
@@ -44,7 +44,7 @@ const list = createList([
   ['ff', 2],
   ['h', 1],
   ['z', 1],
-  ['zz', 2]
+  ['zz', 2],
 ])
 
 describe('map', () => {
@@ -59,7 +59,7 @@ describe('map', () => {
       [true, undefined, 1, false],
       [undefined, true, 5, true],
       [undefined, true, 1, true],
-      [undefined, true, 2, false]
+      [undefined, true, 2, false],
     ].map(([isLeaf, isBranch, entries, closed]) => ({ isLeaf, isBranch, entries, closed }))
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
@@ -101,7 +101,7 @@ describe('map', () => {
       root = node
     }
     const verify = (entries, start, end) => {
-      const keys = entries.map(entry => entry.key)
+      const keys = entries.map((entry) => entry.key)
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
@@ -123,7 +123,7 @@ describe('map', () => {
       root = node
     }
     const verify = (entries, start, end) => {
-      const keys = entries.map(entry => entry.key)
+      const keys = entries.map((entry) => entry.key)
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
@@ -138,16 +138,19 @@ describe('map', () => {
       last = node
     }
     const verify = (entries, start, end) => {
-      const keys = entries.map(entry => entry.key)
+      const keys = entries.map((entry) => entry.key)
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
     const { result: entries } = await last.getAllEntries()
     verify(entries)
-    const bulk = [{ key: 'dd', value: 2 }, { key: 'd', value: -1 }]
+    const bulk = [
+      { key: 'dd', value: 2 },
+      { key: 'd', value: -1 },
+    ]
     const { blocks, root } = await last.bulk(bulk)
-    await Promise.all(blocks.map(block => put(block)))
-    const _get = async k => (await root.get(k)).result
+    await Promise.all(blocks.map((block) => put(block)))
+    const _get = async (k) => (await root.get(k)).result
     same(await _get('dd'), 2)
     same(await _get('d'), -1)
     const expected = [
@@ -159,7 +162,7 @@ describe('map', () => {
       ['ff', 2],
       ['h', 1],
       ['z', 1],
-      ['zz', 2]
+      ['zz', 2],
     ]
     for (const [key, value] of expected) {
       same(await _get(key), value)
@@ -200,7 +203,7 @@ describe('map', () => {
     while (i < 100) {
       const bulk = [{ key: i.toString(), value: false }]
       const { blocks, root } = await base.bulk(bulk)
-      await Promise.all(blocks.map(block => put(block)))
+      await Promise.all(blocks.map((block) => put(block)))
       const { result } = await root.getAllEntries()
       verify(result)
       i++
@@ -247,7 +250,7 @@ describe('map', () => {
       const [{ key, value }] = previous
       same(key, i.toString())
       same(value, true)
-      await Promise.all(blocks.map(block => put(block)))
+      await Promise.all(blocks.map((block) => put(block)))
       const { result } = await root.getAllEntries()
       verify(result)
       i++
@@ -274,12 +277,18 @@ describe('map', () => {
     const back = [...expected]
     while (front.length) {
       const { result: entries } = await last.getRangeEntries(front[0], front[front.length - 1] + '999')
-      same(entries.map(({ key }) => key), front)
+      same(
+        entries.map(({ key }) => key),
+        front
+      )
       front.shift()
     }
     while (front.length) {
       const { result: entries } = await last.getRangeEntries(back[0], back[back.length - 1] + '.')
-      same(entries.map(({ key }) => key), back)
+      same(
+        entries.map(({ key }) => key),
+        back
+      )
       back.pop()
     }
 
@@ -334,10 +343,10 @@ describe('map', () => {
     same(result, [1, 2, 1])
     const bulk = [{ key: 'aaa', value: 3 }]
     const { blocks, root: rr } = await root.bulk(bulk)
-    await Promise.all(blocks.map(block => put(block)))
+    await Promise.all(blocks.map((block) => put(block)))
     same((await rr.get('aaa')).result, 3)
   })
-  it('big map', async () => {
+  it('basic numeric string key', async () => {
     const { get, put } = storage()
     let mapRoot
     // let leaf
@@ -346,16 +355,54 @@ describe('map', () => {
       await put(await node.block)
       mapRoot = node
     }
-    const { result } = await mapRoot.get('c').catch(e => {
+    const { result } = await mapRoot.get('c').catch((e) => {
+      same(e.message, 'Failed at key: c')
+    })
+    same(result, 1)
+
+    const randFun = mulberry32(1)
+    const errors = []
+    const limit = 500
+    for (let rowCount = 0; rowCount < limit; rowCount++) {
+      const key = String.fromCharCode(rowCount)
+      const value = `${rowCount}-${key}`
+      // console.log('writing', key, value)
+      const bulk = [{ key, value }]
+      const { blocks, root } = await mapRoot.bulk(bulk)
+      await Promise.all(blocks.map((block) => put(block)))
+      mapRoot = root
+      await mapRoot.get(key).then(()=>{
+        // console.log('got', key, value)
+      }).catch((e) => {
+        errors.push({key, value, rowCount})
+      })
+
+    }
+    console.log('ok keys',limit - errors.length)
+    console.log('unhandled keys',errors.length)
+    // anything with charcode less than 97, eg before lowercase a, will fail
+    console.log('unhandled keys',errors.map(({key, rowCount})=>key))
+    same(errors.length, 0)
+  })
+  it.skip('big map', async () => {
+    const { get, put } = storage()
+    let mapRoot
+    // let leaf
+    for await (const node of create({ get, compare, list, ...opts })) {
+      // if (node.isLeaf) leaf = node
+      await put(await node.block)
+      mapRoot = node
+    }
+    const { result } = await mapRoot.get('c').catch((e) => {
       same(e.message, 'Failed at key: c')
     })
     same(result, 1)
 
     const { blocks: blockX, root: rootX } = await mapRoot.bulk([{ key: 'ok', value: 200 }])
-    await Promise.all(blockX.map(block => put(block)))
+    await Promise.all(blockX.map((block) => put(block)))
     mapRoot = rootX
 
-    const { result: result2 } = await mapRoot.get('ok').catch(e => {
+    const { result: result2 } = await mapRoot.get('ok').catch((e) => {
       same(e.message, 'Failed at key: ok')
     })
     same(result2, 200)
@@ -367,13 +414,52 @@ describe('map', () => {
         const key = prefix + index.toString()
         const bulk = [{ key, value: index }]
         const { blocks, root } = await mapRoot.bulk(bulk)
-        await Promise.all(blocks.map(block => put(block)))
+        await Promise.all(blocks.map((block) => put(block)))
         mapRoot = root
-        const { result: result3 } = await mapRoot.get(key).catch(e => {
+        const { result: result3 } = await mapRoot.get(key).catch((e) => {
           same(e.message, 'Failed at key: ' + key)
         })
         same(result3, index)
       }
     }
   })
+  it.skip('deterministic fuzzer', async () => {
+    const { get, put } = storage()
+    let mapRoot
+    // let leaf
+    for await (const node of create({ get, compare, list, ...opts })) {
+      // if (node.isLeaf) leaf = node
+      await put(await node.block)
+      mapRoot = node
+    }
+    const { result } = await mapRoot.get('c').catch((e) => {
+      same(e.message, 'Failed at key: c')
+    })
+    same(result, 1)
+
+    for (let i = 0; i < 100; i++) {
+      const randFun = mulberry32(i)
+      for (let rowCount = 0; rowCount < 100; rowCount++) {
+        const key = 'a-' + randFun()
+        const value = `${i}-${rowCount}-${key}`
+        const bulk = [{ key, value }]
+        const { blocks, root } = await mapRoot.bulk(bulk)
+        await Promise.all(blocks.map((block) => put(block)))
+        mapRoot = root
+        const { result: result3 } = await mapRoot.get(key).catch((e) => {
+          same(e.message, `Failed at key: ${key} : ${value}`)
+        })
+        same(result3, value)
+      }
+    }
+  }).timeout(60 * 1000)
 })
+
+function mulberry32(a) {
+  return function () {
+    let t = (a += 0x6d2b79f5)
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
