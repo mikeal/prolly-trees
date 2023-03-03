@@ -1,7 +1,7 @@
 # Prolly Trees
 
 Implementation of [peer-to-peer search trees](https://0fps.net/2020/12/19/peer-to-peer-ordered-search-indexes/) [(probabalistic b-trees trees)](https://www.dolthub.com/blog/2020-04-01-how-dolt-stores-table-data/) as
-used in dolt and noms.
+used in [dolt](https://www.github.com/dolthub/dolt) and [noms](https://www.github.com/attic-labs/noms).
 
 While this library has 100% test coverage and is relatively stable, it's
 not recommended for broad use. The implementation internals are all very
