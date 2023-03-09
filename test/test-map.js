@@ -369,7 +369,11 @@ describe('map', () => {
       // console.log('writing', key, value)
       const bulk = [{ key, value }]
       const { blocks, root } = await mapRoot.bulk(bulk)
-      await Promise.all(blocks.map((block) => put(block)))
+      // await Promise.all(blocks.map((block) => await put(block)))
+      for (const bl of blocks) {
+        await put(bl)
+      }
+
       mapRoot = root
       await mapRoot
         .get(key)
