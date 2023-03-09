@@ -44,7 +44,7 @@ const list = createList([
   ['ff', 2],
   ['h', 1],
   ['z', 1],
-  ['zz', 2],
+  ['zz', 2]
 ])
 
 describe('map', () => {
@@ -59,7 +59,7 @@ describe('map', () => {
       [true, undefined, 1, false],
       [undefined, true, 5, true],
       [undefined, true, 1, true],
-      [undefined, true, 2, false],
+      [undefined, true, 2, false]
     ].map(([isLeaf, isBranch, entries, closed]) => ({ isLeaf, isBranch, entries, closed }))
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
@@ -146,7 +146,7 @@ describe('map', () => {
     verify(entries)
     const bulk = [
       { key: 'dd', value: 2 },
-      { key: 'd', value: -1 },
+      { key: 'd', value: -1 }
     ]
     const { blocks, root } = await last.bulk(bulk)
     await Promise.all(blocks.map((block) => put(block)))
@@ -162,7 +162,7 @@ describe('map', () => {
       ['ff', 2],
       ['h', 1],
       ['z', 1],
-      ['zz', 2],
+      ['zz', 2]
     ]
     for (const [key, value] of expected) {
       same(await _get(key), value)
@@ -360,7 +360,7 @@ describe('map', () => {
     })
     same(result, 1)
 
-    const randFun = mulberry32(1)
+    // const randFun = mulberry32(1)
     const errors = []
     const limit = 500
     for (let rowCount = 0; rowCount < limit; rowCount++) {
@@ -371,17 +371,22 @@ describe('map', () => {
       const { blocks, root } = await mapRoot.bulk(bulk)
       await Promise.all(blocks.map((block) => put(block)))
       mapRoot = root
-      await mapRoot.get(key).then(()=>{
-        // console.log('got', key, value)
-      }).catch((e) => {
-        errors.push({key, value, rowCount})
-      })
-
+      await mapRoot
+        .get(key)
+        .then(() => {
+          // console.log('got', key, value)
+        })
+        .catch((e) => {
+          errors.push({ key, value, rowCount })
+        })
     }
-    console.log('ok keys',limit - errors.length)
-    console.log('unhandled keys',errors.length)
+    console.log('ok keys', limit - errors.length)
+    console.log('unhandled keys', errors.length)
     // anything with charcode less than 97, eg before lowercase a, will fail
-    console.log('unhandled keys',errors.map(({key, rowCount})=>key))
+    console.log(
+      'unhandled keys',
+      errors.map(({ key, rowCount }) => key)
+    )
     same(errors.length, 0)
   })
   it.skip('big map', async () => {
@@ -455,7 +460,7 @@ describe('map', () => {
   }).timeout(60 * 1000)
 })
 
-function mulberry32(a) {
+function mulberry32 (a) {
   return function () {
     let t = (a += 0x6d2b79f5)
     t = Math.imul(t ^ (t >>> 15), t | 1)
