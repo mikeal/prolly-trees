@@ -269,7 +269,7 @@ class Node {
       const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
       // TODO: there's a faster version of this that only does one iteration
       entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
-      const _opts = { entries, NodeClass: LeafClass, distance: 0, ...nodeOptions }
+      const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0, }
       const nodes = await Node.from(_opts)
       return { nodes, previous, blocks: [], distance: 0 }
     } else {
@@ -299,7 +299,7 @@ class Node {
           const entries = prepend.entryList.entries.concat(entry.entryList.entries)
           prepend = null
           const NodeClass = distance === 0 ? LeafClass : BranchClass
-          const _opts = { entries, NodeClass, distance, ...nodeOptions }
+          const _opts = { ...nodeOptions, entries, NodeClass, distance }
           const nodes = await Node.from(_opts)
           if (!nodes[nodes.length - 1].closed) {
             prepend = nodes.pop()
@@ -327,7 +327,7 @@ class Node {
         return new BranchEntryClass(branch, opts)
       }
       entries = await Promise.all(newEntries.map(toEntry))
-      const _opts = { entries, NodeClass: BranchClass, distance, ...nodeOptions }
+      const _opts = { ...nodeOptions, entries, NodeClass: BranchClass, distance }
       return { nodes: await Node.from(_opts), ...final, distance }
     }
   }
@@ -364,7 +364,7 @@ class Node {
         return new BranchEntryClass(node, opts)
       }
       const entries = await Promise.all(results.nodes.map(mapper))
-      results.nodes = await Node.from({ entries, NodeClass: BranchClass, distance, ...nodeOptions })
+      results.nodes = await Node.from({ ...nodeOptions, entries, NodeClass: BranchClass, distance })
       const promises = results.nodes.map(node => node.encode())
       ;(await Promise.all(promises)).forEach(b => results.blocks.push(b))
     }
