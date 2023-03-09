@@ -18,8 +18,8 @@ const getLength = async node => {
 }
 
 class SparseArrayLeaf extends MapLeaf {
-  bulk (bulk, opts = {}) {
-    return super.bulk(bulk, { ...classes, ...opts })
+  bulk (bulk, opts = {}, isRoot = true) {
+    return super.bulk(bulk, { ...classes, ...opts }, isRoot)
   }
 
   getLength () {
@@ -28,8 +28,8 @@ class SparseArrayLeaf extends MapLeaf {
 }
 
 class SparseArrayBranch extends MapBranch {
-  bulk (bulk, opts = {}) {
-    return super.bulk(bulk, { ...classes, ...opts })
+  bulk (bulk, opts = {}, isRoot = true) {
+    return super.bulk(bulk, { ...classes, ...opts }, isRoot)
   }
 
   getLength () {

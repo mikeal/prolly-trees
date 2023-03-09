@@ -330,7 +330,7 @@ class Node {
     }
   }
 
-  async bulk (bulk, opts = {}) {
+  async bulk (bulk, opts = {}, isRoot = true) {
     const { BranchClass, BranchEntryClass } = opts
     const entryOptions = {
       codec: this.codec,
@@ -343,6 +343,7 @@ class Node {
     const nodeOptions = { chunker: this.chunker, opts: entryOptions }
 
     const results = await this.transaction(bulk, opts)
+
     const onBranch = async branch => {
       const block = await branch.encode()
       results.blocks.push(block)
@@ -360,6 +361,18 @@ class Node {
       ;(await Promise.all(promises)).forEach(b => results.blocks.push(b))
     }
     const [root] = results.nodes
+
+    if (isRoot) {
+      const first = root.entryList.startKey
+      for (const { key } of bulk) {
+        if (entryOptions.compare(key, first) > 0) {
+          throw new Error('This is where the fix would go')
+        } else {
+          break
+        }
+      }
+    }
+
     await onBranch(root)
     return { ...results, root }
   }

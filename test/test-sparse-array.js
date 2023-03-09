@@ -125,7 +125,7 @@ describe('sparse array', () => {
     }
     same(await leaf.getLength(), 10001)
     same(await root.getLength(), 10001)
-    const { blocks, root: lRoot } = await leaf.bulk([{ key: 10001, value: 'test' }])
+    const { blocks, root: lRoot } = await leaf.bulk([{ key: 10001, value: 'test' }], {}, false)
     await Promise.all(blocks.map(put))
     same((await lRoot.get(10001)).result, 'test')
     const { blocks: _blocks, root: bRoot } = await root.bulk([{ key: 10001, value: 'test2' }])
