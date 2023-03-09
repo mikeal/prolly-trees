@@ -231,7 +231,7 @@ describe('db index', () => {
     same(ids(await getval('z')), [41])
 
     bulk = [{ key: ['zz', 42], value }, { key: ['zz', 9], del: true }]
-    const { root: newRoot, blocks: newBlocks } = await leaf.bulk(bulk)
+    const { root: newRoot, blocks: newBlocks } = await leaf.bulk(bulk, {}, false)
     await Promise.all(newBlocks.map(b => put(b)))
     same(ids((await newRoot.get('zz')).result), [42])
   })

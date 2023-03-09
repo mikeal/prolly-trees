@@ -44,8 +44,8 @@ class DBIndexLeaf extends MapLeaf {
     return getRange(this, start, end)
   }
 
-  bulk (bulk, opts = {}) {
-    return super.bulk(bulk, { ...classes, ...opts })
+  bulk (bulk, opts = {}, isRoot = true) {
+    return super.bulk(bulk, { ...classes, ...opts }, isRoot)
   }
 }
 
@@ -58,8 +58,8 @@ class DBIndexBranch extends MapBranch {
     return getRange(this, start, end)
   }
 
-  bulk (bulk, opts = {}) {
-    return super.bulk(bulk, { ...classes, ...opts })
+  bulk (bulk, opts = {}, isRoot = true) {
+    return super.bulk(bulk, { ...classes, ...opts }, isRoot)
   }
 }
 
