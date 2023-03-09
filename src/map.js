@@ -45,8 +45,8 @@ class MapLeaf extends IPLDLeaf {
     return getManyValues(this, keys)
   }
 
-  bulk (bulk, opts = {}) {
-    return super.bulk(bulk, { ...classes, ...opts })
+  bulk (bulk, opts = {}, isRoot = true) {
+    return super.bulk(bulk, { ...classes, ...opts }, isRoot)
   }
 }
 class MapBranch extends IPLDBranch {
@@ -58,8 +58,8 @@ class MapBranch extends IPLDBranch {
     return getManyValues(this, keys)
   }
 
-  bulk (bulk, opts = {}) {
-    return super.bulk(bulk, { ...classes, ...opts })
+  bulk (bulk, opts = {}, isRoot = true) {
+    return super.bulk(bulk, { ...classes, ...opts }, isRoot)
   }
 }
 
