@@ -218,13 +218,12 @@ class Node {
 
   async transaction (bulk, opts = {}) {
     const {
-      sorted,
       LeafClass,
       LeafEntryClass,
       BranchClass,
       BranchEntryClass
     } = opts
-    const entryOptions = {
+    opts = {
       codec: this.codec,
       hasher: this.hasher,
       getNode: this.getNode,
@@ -232,9 +231,12 @@ class Node {
       cache: this.cache,
       ...opts
     }
-    const nodeOptions = { chunker: this.chunker, opts: entryOptions }
-    if (!sorted) bulk = bulk.sort(({ key: a }, { key: b }) => this.compare(a, b))
-    const results = this.entryList.findMany(bulk, this.compare, true, this.isLeaf)
+    const nodeOptions = { chunker: this.chunker, opts }
+    if (!opts.sorted) {
+      bulk = bulk.sort(({ key: a }, { key: b }) => opts.compare(a, b))
+      opts.sorted = true
+    }
+    const results = this.entryList.findMany(bulk, opts.compare, true, this.isLeaf)
     let entries = []
     if (this.isLeaf) {
       const previous = []
@@ -256,7 +258,7 @@ class Node {
         if (deletes.has(skey)) {
           deletes.set(skey, i)
         } else {
-          entries[i] = new LeafEntryClass(changes[skey], entryOptions)
+          entries[i] = new LeafEntryClass(changes[skey], opts)
           delete changes[skey]
         }
       }
@@ -264,9 +266,9 @@ class Node {
       for (const [, i] of deletes) {
         entries.splice(i - count++, 1)
       }
-      const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, entryOptions))
+      const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
       // TODO: there's a faster version of this that only does one iteration
-      entries = entries.concat(appends).sort(({ key: a }, { key: b }) => this.compare(a, b))
+      entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
       const _opts = { entries, NodeClass: LeafClass, distance: 0, ...nodeOptions }
       const nodes = await Node.from(_opts)
       return { nodes, previous, blocks: [], distance: 0 }
@@ -322,7 +324,7 @@ class Node {
         const block = await branch.encode()
         final.blocks.push(block)
         this.cache.set(branch)
-        return new BranchEntryClass(branch, entryOptions)
+        return new BranchEntryClass(branch, opts)
       }
       entries = await Promise.all(newEntries.map(toEntry))
       const _opts = { entries, NodeClass: BranchClass, distance, ...nodeOptions }
@@ -331,8 +333,9 @@ class Node {
   }
 
   async bulk (bulk, opts = {}, isRoot = true) {
+
     const { BranchClass, BranchEntryClass } = opts
-    const entryOptions = {
+    opts = {
       codec: this.codec,
       hasher: this.hasher,
       getNode: this.getNode,
@@ -340,7 +343,13 @@ class Node {
       cache: this.cache,
       ...opts
     }
-    const nodeOptions = { chunker: this.chunker, opts: entryOptions }
+
+    if (!opts.sorted) {
+      bulk = bulk.sort(({ key: a }, { key: b }) => opts.compare(a, b))
+      opts.sorted = true
+    }
+
+    const nodeOptions = { chunker: this.chunker, opts }
 
     const results = await this.transaction(bulk, opts)
 
@@ -353,7 +362,7 @@ class Node {
       const distance = results.nodes[0].distance + 1
       const mapper = async node => {
         await onBranch(node)
-        return new BranchEntryClass(node, entryOptions)
+        return new BranchEntryClass(node, opts)
       }
       const entries = await Promise.all(results.nodes.map(mapper))
       results.nodes = await Node.from({ entries, NodeClass: BranchClass, distance, ...nodeOptions })
@@ -363,12 +372,20 @@ class Node {
     const [root] = results.nodes
 
     if (isRoot) {
-      const first = root.entryList.startKey
-      for (const { key } of bulk) {
-        if (entryOptions.compare(key, first) > 0) {
-          throw new Error('This is where the fix would go')
-        } else {
-          break
+      while (results.nodes.length > 1) {
+        const first = root.entryList.startKey
+        const inserts = []
+        for (const b of bulk) {
+          const { key, del } = b
+          if (opts.compare(key, first) < 0) {
+            if (!del) inserts.push(b)
+            throw new Error('here')
+          } else {
+            break
+          }
+        }
+        if (inserts.length) {
+          results = 'asdf'
         }
       }
     }
