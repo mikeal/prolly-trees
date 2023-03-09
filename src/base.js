@@ -333,7 +333,6 @@ class Node {
   }
 
   async bulk (bulk, opts = {}, isRoot = true) {
-
     const { BranchClass, BranchEntryClass } = opts
     opts = {
       codec: this.codec,
@@ -372,21 +371,25 @@ class Node {
     const [root] = results.nodes
 
     if (isRoot) {
-      while (results.nodes.length > 1) {
-        const first = root.entryList.startKey
-        const inserts = []
-        for (const b of bulk) {
-          const { key, del } = b
-          if (opts.compare(key, first) < 0) {
-            if (!del) inserts.push(b)
-            throw new Error('here')
-          } else {
-            break
-          }
+      const first = root.entryList.startKey
+      const inserts = []
+      for (const b of bulk) {
+        const { key, del } = b
+        if (opts.compare(key, first) < 0) {
+          if (!del) inserts.push(b)
+        } else {
+          break
         }
-        if (inserts.length) {
-          results = 'asdf'
-        }
+      }
+      if (inserts.length) {
+        // traverse to left most leaf node
+
+        // create new nodes from leaf entries in and Node.from( .. insert nodes ..)
+
+        // merge back up the tree
+
+        // then delete
+        throw new Error('Not Implemented :(')
       }
     }
 
