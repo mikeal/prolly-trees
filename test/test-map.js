@@ -35,7 +35,7 @@ const verify = (check, node) => {
 const createList = (entries) => entries.map(([key, value]) => ({ key, value }))
 
 const list = createList([
-  ['^', 1],
+  ['a', 1],
   ['b', 1],
   ['bb', 2],
   ['c', 1],
@@ -82,15 +82,15 @@ describe('map', () => {
       await put(await node.block)
       root = node
     }
-    const { result: entries, cids } = await root.getEntries(['^', 'zz'])
+    const { result: entries, cids } = await root.getEntries(['a', 'zz'])
     same((await cids.all()).size, 5)
     same(entries.length, 2)
     const [a, zz] = entries
-    same(a.key, '^')
+    same(a.key, 'a')
     same(a.value, 1)
     same(zz.key, 'zz')
     same(zz.value, 2)
-    const { result: values } = await root.getMany(['^', 'zz'])
+    const { result: values } = await root.getMany(['a', 'zz'])
     same(values, [1, 2])
   })
   it('getRangeEntries', async () => {
@@ -110,9 +110,9 @@ describe('map', () => {
     verify(entries, 1, 8)
     entries = await range('', 'zzz')
     verify(entries)
-    entries = await range('^', 'zz')
+    entries = await range('a', 'zz')
     verify(entries, 0, 9)
-    entries = await range('^', 'c')
+    entries = await range('a', 'c')
     verify(entries, 0, 3)
   })
   it('getAllEntries', async () => {
@@ -154,7 +154,7 @@ describe('map', () => {
     same(await _get('dd'), 2)
     same(await _get('d'), -1)
     const expected = [
-      ['^', 1],
+      ['a', 1],
       ['b', 1],
       ['bb', 2],
       ['c', 1],
