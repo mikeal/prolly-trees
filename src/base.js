@@ -269,7 +269,7 @@ class Node {
       const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
       // TODO: there's a faster version of this that only does one iteration
       entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
-      const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0, }
+      const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
       const nodes = await Node.from(_opts)
       return { nodes, previous, blocks: [], distance: 0 }
     } else {
@@ -333,7 +333,7 @@ class Node {
   }
 
   async bulk (bulk, opts = {}, isRoot = true) {
-    const { BranchClass, BranchEntryClass } = opts
+    const { BranchClass, BranchEntryClass, LeafClass, LeafEntryClass } = opts
     opts = {
       codec: this.codec,
       hasher: this.hasher,
@@ -383,13 +383,89 @@ class Node {
       }
       if (inserts.length) {
         // traverse to left most leaf node
-
+        const theChunker = this.chunker
+        let leaf = this
+        while (!leaf.isLeaf) {
+          const index = leaf.entryList.entries.findIndex((entry) => this.compare(entry.key, inserts[0].key) > 0)
+          const entry = leaf.entryList.entries[index]
+          leaf = await this.getNode(await entry.address)
+        }
+        // At this point, `leaf` should be the left-most leaf node where new entries will be inserted.
+        // We will create a new node for each new entry, and insert it into `leaf` as necessary.
         // create new nodes from leaf entries in and Node.from( .. insert nodes ..)
 
-        // merge back up the tree
+        // create new nodes from leaf entries in and Node.from( .. insert nodes ..)
+        const newEntries = inserts.map(({ key, value }) => new LeafEntryClass({ key, value }, opts))
+        const insertNodes = await Node.from({
+          entries: newEntries,
+          chunker: this.chunker,
+          NodeClass: LeafClass,
+          distance: this.distance,
+          opts: { compare: this.compare },
+        })
 
-        // then delete
-        throw new Error('Not Implemented :(')
+        // insert new entries into `leaf`
+        let i = 0
+        while (i < insertNodes.length) {
+          const index = leaf.entryList.entries.findIndex(
+            (entry) => this.compare(entry.key, insertNodes[i].entryList.startKey) > 0
+          )
+          const entry = leaf.entryList.entries[index]
+          if (entry && this.compare(entry.key, insertNodes[i].entryList.startKey) === 0) {
+            // Entry already exists, so we will update it.
+            leaf.entryList.update(index, insertNodes[i].entryList.entries[0])
+          } else {
+            // Entry does not exist, so we will insert it.
+            // console.log('inserting', leaf, insertNodes[i].entryList.entries[0])
+            leaf.entryList.entries.push(insertNodes[i].entryList.entries[0])
+          }
+          i++
+        }
+
+        // At this point, all new entries have been inserted into `leaf`.
+        // We will now split `leaf` into new nodes as necessary, and update the parent nodes.
+
+        let currentNode = leaf
+        let parent = null
+        while (true) {
+          const { entries, newParent } = await currentNode.split({ NodeClass: LeafClass, ...opts })
+          if (parent) {
+            const index = parent.entryList.entries.findIndex((entry) => this.compare(entry.key, currentNode.key) === 0)
+            parent.entryList.update(index, new LeafEntryClass({ key, value: entries[0].value }, opts))
+            const nextIndex = parent.entryList.entries.findIndex((entry) => this.compare(entry.key, newParent.key) > 0)
+            if (nextIndex === parent.entryList.entries.length) {
+              parent.entryList.push(new BranchEntryClass(newParent, opts))
+            } else {
+              parent.entryList.insert(nextIndex, new BranchEntryClass(newParent, opts))
+            }
+          } else {
+            parent = new BranchClass({
+              entryList: new EntryList({ entries: [new BranchEntryClass(newParent, opts)] }),
+              theChunker,
+              distance: leaf.distance + 1,
+              ...opts,
+            })
+            parent.entryList.insert(0, new LeafEntryClass({ key: entries[0].key, value: entries[0].value }, opts))
+            const [nextIndex] = parent.entryList.entries.findIndexAndKey(currentNode.key, this.compare)
+            if (nextIndex === parent.entryList.entries.length) {
+              parent.entryList.push(new BranchEntryClass(currentNode, opts))
+            } else {
+              parent.entryList.insert(nextIndex, new BranchEntryClass(currentNode, opts))
+            }
+          }
+
+          if (entries.length === newEntries.length) {
+            // All entries have been inserted, so we are done.
+            break
+          }
+
+          // There are still entries left to insert, so we will continue inserting them into the new leaf node.
+          newEntries.splice(0, entries.length)
+          currentNode = await this.getNode(await newParent.right)
+        }
+
+        // At this point, all new entries have been inserted into the B-tree.
+        // We can now delete any entries that were marked for deletion.
       }
     }
 
