@@ -271,7 +271,7 @@ class Node {
       const nodes = await Node.from(_opts)
       return { nodes, previous, blocks: [], distance: 0 }
     } else {
-      let distance
+      let distance = 0
       for (const [i, [entry, keys]] of results) {
         const p = this.getNode(await entry.address)
           .then(node => node.transaction(keys.reverse(), { ...opts, sorted: true }))
