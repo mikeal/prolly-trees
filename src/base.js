@@ -334,7 +334,7 @@ class Node {
 
   async bulk (bulk, opts = {}, isRoot = true) {
     const {
-      BranchClass, BranchEntryClass // LeafClass,
+      BranchClass, BranchEntryClass, LeafClass
       // LeafEntryClass
     } = opts
     opts = {
@@ -395,8 +395,10 @@ class Node {
         }
         // create new nodes from leaf entries in and Node.from( )
         const newEntries = []
-        let entries = []
+        const entries = []
         const newInserts = []
+        const deletesList = []
+
         for (const insert of inserts) {
           const index = entries.findIndex(entry => this.compare(entry.key, insert.key) > 0)
           if (index >= 0) {
@@ -406,7 +408,7 @@ class Node {
           }
         }
         if (entries.length) {
-          const chunk = []
+          let chunk = []
           for (const entry of entries) {
             chunk.push(entry)
             if (await this.chunker(entry, 0)) {
@@ -431,67 +433,94 @@ class Node {
         })))
 
         // merge back up the tree
+        // Merge back up the tree
+        let distance = 0
+        while (leaf) {
+          const bulk = []
+          const previous = []
+          let node = null
+          let entries = []
+          let start = null
+          let end = null
+          const deletes = []
 
-        let parent = leaf.getParent()
-
-        let addNode = async (parentNode, node, level) => {
-          if (parentNode.entryList.entries.length < 2 * parentNode.chunker.chunkSize) {
-            // the parent is not full, we can add the node to it and exit
-            await parentNode.bulk([new LeafEntry(node.entryList.entries[0], opts)], { isRoot: false })
-          } else {
-            // the parent is full, we need to split it, add the node and merge it up
-            let splitIndex = parentNode.entryList.entries.length / 2
-            let pivot = parentNode.entryList.entries[splitIndex - 1].key
-            let entriesLeft = parentNode.entryList.entries.slice(0, splitIndex)
-            let entriesRight = parentNode.entryList.entries.slice(splitIndex)
-            let nodeLeft = new Node({
-              entryList: new EntryList({ entries: entriesLeft, closed: parentNode.entryList.closed }),
-              chunker: this.chunker,
-              getNode: this.getNode,
-              compare: this.compare,
-              cache: this.cache
-            })
-            let nodeRight = new Node({
-              entryList: new EntryList({ entries: entriesRight, closed: parentNode.entryList.closed }),
-              chunker: this.chunker,
-              getNode: this.getNode,
-              compare: this.compare,
-              cache: this.cache
-            })
-
-            if (level === 0) {
-              // we're splitting a leaf node, so we need to make the parent a branch node
-              parentNode = new Branch({
-                entryList: new EntryList({ entries: [], closed: parentNode.entryList.closed }),
-                chunker: this.chunker,
-                getNode: this.getNode,
-                compare: this.compare,
-                cache: this.cache
-              })
-            }
-
-            // update the parent's entry list
-            parentNode.entryList.entries = [new BranchEntry(pivot, nodeLeft), new BranchEntry(pivot, nodeRight)]
-
-            // determine which side of the parent the new node belongs to
-            let side = this.compare(node.entryList.startKey, pivot) < 0 ? nodeLeft : nodeRight
-
-            // add the new node to the side
-            await addNode(side, node, level + 1)
-
-            // merge the node up the tree
-            if (parentNode !== parent) {
-              await addNode(parentNode.getParent(), parentNode, level - 1)
+          // collect all deletes in the range
+          for (const del of deletesList) {
+            if (this.compare(del.key, leaf.entryList.startKey) >= 0 && this.compare(del.key, leaf.entryList.endKey) <= 0) {
+              deletes.push(del)
             }
           }
+
+          for (const entry of leaf.entryList.entries) {
+            if (!node) {
+              if (newInserts.length && this.compare(newInserts[0].key, entry.key) < 0) {
+                node = nodes.shift()
+                if (!node) {
+                  throw new Error('Failed to insert entries')
+                }
+                entries = node
+                  .entryList
+                  .entries
+                  .filter((entry) => this.compare(entry.key, start) >= 0 && this.compare(entry.key, end) <= 0)
+              }
+            }
+            if (node) {
+              bulk.push({ del: true, key: entry.key })
+              previous.push(entry)
+              const index = entries.findIndex((entry2) => this.compare(entry2.key, entry.key) > 0)
+              if (index >= 0) {
+                entries.splice(index, 0, entry)
+              } else {
+                entries.push(entry)
+              }
+              if (await this.chunker(entry, distance)) {
+                const { root, blocks } = await node.bulk(bulk, { ...opts, isRoot: false })
+                newInserts.push({ key: root.entryList.startKey, address: await root.cid(), size: await root.size() })
+                results.blocks = results.blocks.concat(blocks)
+                results.previous = results.previous.concat(previous)
+                bulk.splice(0, bulk.length)
+                previous.splice(0, previous.length)
+                node = null
+              }
+            } else {
+              const delIndex = deletes.findIndex(del => this.compare(del.key, entry.key) === 0)
+              if (delIndex === -1) {
+                bulk.push({ key: entry.key, value: entry.value })
+                previous.push(entry)
+              } else {
+                deletes.splice(delIndex, 1)
+              }
+            }
+            start = start || entry.key
+            end = entry.key
+          }
+          if (node && bulk.length) {
+            const { root, blocks } = await node.bulk(bulk, { ...opts, isRoot: false })
+            newInserts.push({ key: root.entryList.startKey, address: await root.cid(), size: await root.size() })
+            results.blocks = results.blocks.concat(blocks)
+            results.previous = results.previous.concat(previous)
+          }
+          const [nextLeaf] = leaf.entryList.extra || []
+          distance++
+          leaf = nextLeaf ? await this.getNode(await nextLeaf.address) : null
         }
 
-        for (let node of nodes) {
-          await addNode(parent, node, 0)
+        // Delete the remaining entries
+        const deletes = []
+        for (const del of deletesList) {
+          const index = results.previous.findIndex(entry => this.compare(entry.key, del.key) === 0)
+          if (index !== -1) {
+            const entry = results.previous.splice(index, 1)[0]
+            deletes.push(entry)
+          }
+        }
+        if (deletes.length) {
+          const root = await this.getRoot()
+          const { blocks } = await root.bulk(deletes.map(entry => ({ del: true, key: entry.key })), opts)
+          results.blocks = results.blocks.concat(blocks)
         }
 
-        // then delete
-        throw new Error('Not Implemented :(')
+        return results
       }
     }
 
