@@ -48,6 +48,18 @@ const list = createList([
   [['zz', 9], cid]
 ])
 
+const stringDocIdList = createList([
+  [['a', 't0'], cid],
+  [['b', 't1'], cid],
+  [['b', 't2'], cid],
+  [['c', 't3'], cid],
+  [['c', 't4'], cid],
+  [['d', 't5'], cid],
+  [['f', 't6'], cid],
+  [['h', 't7'], cid],
+  [['zz', 't9'], cid]
+])
+
 describe('db index', () => {
   it('basic create', async () => {
     const { get, put } = storage()
@@ -94,6 +106,49 @@ describe('db index', () => {
     result = results[0]
     same(result.id, 'zz')
     same(result.key, 9)
+  })
+  it('string create', async () => {
+    const { get, put } = storage()
+    const checks = [
+      [true, undefined, 1, true],
+      [true, undefined, 2, true],
+      [true, undefined, 2, true],
+      [true, undefined, 4, true],
+      [undefined, true, 3, true],
+      [undefined, true, 1, true],
+      [undefined, true, 1, true],
+      [undefined, true, 1, true],
+      [undefined, true, 2, false]
+    ].map(([isLeaf, isBranch, entries, closed]) => ({ isLeaf, isBranch, entries, closed }))
+    let root
+    let leaf
+    for await (const node of create({ get, list: stringDocIdList, ...opts })) {
+      if (node.isLeaf) leaf = node
+      const address = await node.address
+      same(address.asCID, address)
+      verify(checks.shift(), node)
+      await put(await node.block)
+      root = node
+    }
+    root = await root.getNode(await root.address)
+    for (const { key } of stringDocIdList) {
+      const expected = stringDocIdList.map(entry => {
+        if (entry.key[0] !== key[0]) return null
+        return { id: entry.key[1], row: entry.value }
+      }).filter(x => x)
+      const { result } = await root.get(key[0])
+      same(result.id, expected.id)
+      same(result, expected)
+    }
+    const cid = await leaf.address
+    root = await load({ cid, get, ...opts })
+    let { result: [result] } = await leaf.get('zz')
+    same(result.id, 't9')
+    const { result: results } = await leaf.range('z', 'zzzzz')
+    same(results.length, 1)
+    result = results[0]
+    same(result.id, 'zz')
+    same(result.key, 't9')
   })
   it('range', async () => {
     const { get, put } = storage()
