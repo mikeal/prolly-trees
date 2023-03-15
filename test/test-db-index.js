@@ -178,14 +178,7 @@ describe('db index', () => {
     const { get, put } = storage()
     const badDocIdList = createList([
       [['a', 't0'], cid],
-      [['b', NaN], cid],
-      [['b', 't2'], cid],
-      [['c', 't3'], cid],
-      [['c', 't4'], cid],
-      [['d', 't5'], cid],
-      [['f', 't6'], cid],
-      [['h', 't7'], cid],
-      [['zz', 't9'], cid]
+      [['b', NaN], cid]
     ])
 
     try {
