@@ -233,8 +233,8 @@ describe('db index', () => {
     const getrange = async (start, end) => (await root.range(start, end)).result
     const gotrange = await getrange('a', 'z')
     console.log('gotrange', gotrange)
-    same(gotrange[0].id, 'ok')
-    same(gotrange[0].key, 'ok')
+    const { id, key } = gotrange[0]
+    same({ id, key }, 'ok')
 
     bulk = [{ key: ['zz', 42], value }, { key: ['zz', 9], del: true }]
     const { root: newRoot, blocks: newBlocks } = await leaf.bulk(bulk, {}, false)
