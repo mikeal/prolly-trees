@@ -230,6 +230,12 @@ describe('db index', () => {
     same(ids(await getval('b')), [1])
     same(ids(await getval('z')), [41])
 
+    const getrange = async (start, end) => (await root.range(start, end)).result
+    const gotrange = await getrange('a', 'z')
+    console.log('gotrange', gotrange)
+    same(gotrange[0].id, 'ok')
+    same(gotrange[0].key, 'ok')
+
     bulk = [{ key: ['zz', 42], value }, { key: ['zz', 9], del: true }]
     const { root: newRoot, blocks: newBlocks } = await leaf.bulk(bulk)
     await Promise.all(newBlocks.map(b => put(b)))
