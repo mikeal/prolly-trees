@@ -21,7 +21,13 @@ const getIndex = async (node, key) => {
   const start = [key, NaN]
   const end = [key, Infinity]
   const { result: entries, cids } = await node.getRangeEntries(start, end)
-  return { result: entries.map(entry => ({ id: entry.key[1], row: entry.value })), cids }
+  return {
+    result: entries.map(entry => {
+      const [key, id] = entry.key
+      return { id, key, row: entry.value }
+    }),
+    cids
+  }
 }
 
 const getRange = async (node, start, end) => {
