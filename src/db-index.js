@@ -10,11 +10,11 @@ const compare = (a, b) => {
 }
 
 const refCompare = (aRef, bRef) => {
-  if (Number.isNaN(aRef) && Number.isNaN(bRef)) throw new Error('Both refs are NaN')
+  if (Number.isNaN(aRef) && Number.isNaN(bRef)) throw new Error('ref may not be Infinity or NaN')
   if (Number.isNaN(aRef)) return -1
-  if (Number.isNaN(bRef)) throw new Error('End ref makes senes as Infinity, not NaN')
+  if (Number.isNaN(bRef)) throw new Error('ref may not be Infinity or NaN')
   if (!Number.isFinite(aRef)) return 1
-  if (!Number.isFinite(bRef)) throw new Error('End ref makes sense as NaN, not Infinity')
+  if (!Number.isFinite(bRef)) throw new Error('ref may not be Infinity or NaN')
   return simpleCompare(aRef, bRef)
 }
 
