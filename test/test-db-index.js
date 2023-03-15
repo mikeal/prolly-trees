@@ -176,8 +176,6 @@ describe('db index', () => {
   })
   it('range errors', async () => {
     const { get, put } = storage()
-    let root
-
     const badDocIdList = createList([
       [['a', 't0'], cid],
       [['b', NaN], cid],
