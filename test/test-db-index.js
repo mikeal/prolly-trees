@@ -92,7 +92,7 @@ describe('db index', () => {
     for (const { key } of list) {
       const expected = list.map(entry => {
         if (entry.key[0] !== key[0]) return null
-        return { id: entry.key[1], row: entry.value }
+        return { id: entry.key[1], key: entry.key[0], row: entry.value }
       }).filter(x => x)
       const { result } = await root.get(key[0])
       same(result, expected)
@@ -134,7 +134,7 @@ describe('db index', () => {
     for (const { key } of stringDocIdList) {
       const expected = stringDocIdList.map(entry => {
         if (entry.key[0] !== key[0]) return null
-        return { id: entry.key[1], row: entry.value }
+        return { id: entry.key[1], key: key[0], row: entry.value }
       }).filter(x => x)
       const { result } = await root.get(key[0])
       same(result.id, expected.id)
