@@ -104,8 +104,8 @@ describe('db index', () => {
     const { result: results } = await leaf.range('z', 'zzzzz')
     same(results.length, 1)
     result = results[0]
-    same(result.id, 'zz')
-    same(result.key, 9)
+    same(result.id, 9)
+    same(result.key, 'zz')
   })
   it('string create', async () => {
     const { get, put } = storage()
@@ -147,8 +147,8 @@ describe('db index', () => {
     const { result: results } = await leaf.range('z', 'zzzzz')
     same(results.length, 1)
     result = results[0]
-    same(result.id, 'zz')
-    same(result.key, 't9')
+    same(result.key, 'zz')
+    same(result.id, 't9')
   })
   it('range', async () => {
     const { get, put } = storage()
@@ -159,7 +159,7 @@ describe('db index', () => {
     }
     const verify = (entries, start, end) => {
       const comp = list.slice(start, end).map(entry => {
-        const [id, key] = entry.key
+        const [key, id] = entry.key
         return { id, key, row: entry.value }
       })
       same(entries, comp)
@@ -232,10 +232,16 @@ describe('db index', () => {
 
     const getrange = async (start, end) => (await root.range(start, end)).result
     const gotrange = await getrange('a', 'z')
-    console.log('gotrange', gotrange)
-    const { id, key } = gotrange[0]
-    same({ id, key }, 'ok')
-
+    let { id, key } = gotrange[0]
+    same({ id, key }, { id: 0, key: 'a' })
+    ;({ id, key } = gotrange[1])
+    same({ id, key }, { id: 40, key: 'a' })
+    ;({ id, key } = gotrange[2])
+    same({ id, key }, { id: 1, key: 'b' })
+    ;({ id, key } = gotrange[3])
+    same({ id, key }, { id: 3, key: 'c' })
+    ;({ id, key } = gotrange[4])
+    same({ id, key }, { id: 4, key: 'c' })
     bulk = [{ key: ['zz', 42], value }, { key: ['zz', 9], del: true }]
     const { root: newRoot, blocks: newBlocks } = await leaf.bulk(bulk)
     await Promise.all(newBlocks.map(b => put(b)))
