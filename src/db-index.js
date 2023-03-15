@@ -29,7 +29,7 @@ const getRange = async (node, start, end) => {
   end = [end, Infinity]
   const { result: entries, cids } = await node.getRangeEntries(start, end)
   const result = entries.map(entry => {
-    const [id, key] = entry.key
+    const [key, id] = entry.key
     return { id, key, row: entry.value }
   })
   return { result, cids }
