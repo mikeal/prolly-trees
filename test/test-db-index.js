@@ -178,13 +178,21 @@ describe('db index', () => {
     const { get, put } = storage()
     const badDocIdList = createList([
       [['a', 't0'], cid],
-      [['b', NaN], cid]
+      [['b', 't1'], cid],
+      [['b', NaN], cid],
+      [['b', 't2'], cid],
+      [['c', 't3'], cid],
+      [['c', Infinity], cid],
+      [['c', 't4'], cid],
+      [['d', 't5'], cid],
+      [['f', 't6'], cid]
     ])
 
     try {
       for await (const node of create({ get, list: badDocIdList, ...opts })) {
         await put(await node.block)
       }
+      same(false, 'should have thrown')
     } catch (err) {
       same(err.message, 'ref may not be Infinity or NaN')
     }
