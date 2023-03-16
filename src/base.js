@@ -334,8 +334,8 @@ class Node {
 
   async bulk (bulk, opts = {}, isRoot = true) {
     const {
-      BranchClass, BranchEntryClass, LeafClass
-      // LeafEntryClass
+      BranchClass, BranchEntryClass, LeafClass,
+      LeafEntryClass
     } = opts
     opts = {
       codec: this.codec,
@@ -372,7 +372,7 @@ class Node {
         ; (await Promise.all(promises)).forEach(b => results.blocks.push(b))
     }
     const [root] = results.nodes
-
+    results.root = root
     if (isRoot) {
       const first = root.entryList.startKey
       const inserts = []
@@ -390,7 +390,7 @@ class Node {
         let leaf = this
         while (!leaf.isLeaf) {
           const index = leaf.entryList.entries.findIndex((entry) => this.compare(entry.key, inserts[0].key) > 0)
-          const entry = leaf.entryList.entries[index]
+          const entry = new BranchEntryClass(leaf.entryList.entries[index], opts)
           leaf = await this.getNode(await entry.address)
         }
         // create new nodes from leaf entries in and Node.from( )
@@ -402,9 +402,9 @@ class Node {
         for (const insert of inserts) {
           const index = entries.findIndex(entry => this.compare(entry.key, insert.key) > 0)
           if (index >= 0) {
-            entries.splice(index, 0, insert)
+            entries.splice(index, 0, new LeafEntryClass(insert, opts))
           } else {
-            entries.push(insert)
+            entries.push(new LeafEntryClass(insert, opts))
           }
         }
         if (entries.length) {
@@ -433,7 +433,6 @@ class Node {
         })))
 
         // merge back up the tree
-        // Merge back up the tree
         let distance = 0
         while (leaf) {
           const bulk = []
@@ -503,7 +502,7 @@ class Node {
           const [nextLeaf] = leaf.entryList.extra || []
           distance++
           leaf = nextLeaf ? await this.getNode(await nextLeaf.address) : null
-        }
+        }// ad the throws
 
         // Delete the remaining entries
         const deletes = []
@@ -519,13 +518,22 @@ class Node {
           const { blocks } = await root.bulk(deletes.map(entry => ({ del: true, key: entry.key })), opts)
           results.blocks = results.blocks.concat(blocks)
         }
-
-        return results
+        if (newInserts.length) {
+          const newRootEntries = [new BranchEntryClass(await root.cid(), opts.compare)].concat(newInserts.map(i => new BranchEntryClass(i, opts)))
+          const newRoot = await Node.from({ ...nodeOptions, entries: newRootEntries, NodeClass: BranchClass, distance: root.distance + 1 })
+          await onBranch(newRoot)
+          results.root = newRoot
+        }
+        // return results
+      } else {
+        // If there are no new inserts, update the root
+        results.root = root
       }
     }
-
+    const finalRoot = results.root // protection from onBranch side effects
     await onBranch(root)
-    return { ...results, root }
+    results.root = finalRoot
+    return results
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
@@ -533,6 +541,9 @@ class Node {
     let chunk = []
     for (const entry of entries) {
       chunk.push(entry)
+      if (!entry.identity) {
+        console.log('entry', entry)
+      }
       if (await chunker(entry, distance)) {
         parts.push(new EntryList({ entries: chunk, closed: true }))
         chunk = []
