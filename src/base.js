@@ -107,16 +107,16 @@ async function sortBulk (bulk, opts) {
   return bulk.sort(({ key: a }, { key: b }) => opts.compare(a, b))
 }
 
-async function processBranch (results, branch) {
+async function processBranch (that, results, branch) {
   const block = await branch.encode()
   results.blocks.push(block)
-  this.cache.set(branch)
+  that.cache.set(branch)
 }
 
-async function processBranchEntries (results, nodes, opts) {
+async function processBranchEntries (that, results, nodes, opts) {
   const entries = await Promise.all(
     nodes.map(async (node) => {
-      await processBranch.call(this, results, node)
+      await processBranch(that, results, node)
       return new opts.BranchEntryClass(node, opts)
     })
   )
@@ -133,11 +133,11 @@ export async function getLeafNode (inserts, opts) {
   return leaf
 }
 
-async function createNewEntries (inserts, opts) {
+async function createNewEntries (that, inserts, opts) {
   const newEntries = []
   const entries = []
   for (const insert of inserts) {
-    const index = entries.findIndex((entry) => this.compare(entry.key, insert.key) > 0)
+    const index = entries.findIndex((entry) => that.compare(entry.key, insert.key) > 0)
     if (index >= 0) {
       entries.splice(index, 0, new opts.LeafEntryClass(insert, opts))
     } else {
@@ -149,7 +149,7 @@ async function createNewEntries (inserts, opts) {
     let chunk = []
     for (const entry of entries) {
       chunk.push(entry)
-      if (await this.chunker(entry, 0)) {
+      if (await that.chunker(entry, 0)) {
         newEntries.push(chunk)
         chunk = []
       }
@@ -162,13 +162,13 @@ async function createNewEntries (inserts, opts) {
   return newEntries
 }
 
-async function createNewNodes (entriesArray, nodeOptions, NodeClass) {
+async function createNewNodes (that, entriesArray, nodeOptions, NodeClass) {
   return Promise.all(
     entriesArray.map((entries) =>
       Node.from({
         ...JSON.parse(JSON.stringify(nodeOptions)), // Create a shallow copy of nodeOptions
         entries,
-        chunker: this.chunker,
+        chunker: that.chunker,
         NodeClass,
         distance: 0
       })
@@ -176,7 +176,7 @@ async function createNewNodes (entriesArray, nodeOptions, NodeClass) {
   )
 }
 
-async function createNewBranchEntries (newNodes, opts) {
+async function createNewBranchEntries (that, newNodes, opts) {
   const newBranchEntries = []
   for (const node of newNodes) {
     const key = await node.key
@@ -193,14 +193,14 @@ async function encodeNodeWithoutCircularReference (that, node, encode) {
   return await encode(encodeOpts)
 }
 
-async function createNewBranchNodes (newEntries, opts, nodeOptions, LeafClass, distance) {
-  const newNodes = await createNewNodes.call(this, newEntries, nodeOptions, LeafClass)
-  const newBranchEntries = await createNewBranchEntries.call(this, newNodes, opts)
+async function createNewBranchNodes (that, newEntries, opts, nodeOptions, LeafClass, distance) {
+  const newNodes = await createNewNodes(that, newEntries, nodeOptions, LeafClass)
+  const newBranchEntries = await createNewBranchEntries(that, newNodes, opts)
 
   const newBranchNodes = await Node.from({
     ...nodeOptions,
     entries: newBranchEntries,
-    chunker: this.chunker,
+    chunker: that.chunker,
     NodeClass: opts.BranchClass,
     distance: distance + 1
   })
@@ -208,7 +208,7 @@ async function createNewBranchNodes (newEntries, opts, nodeOptions, LeafClass, d
   return { newNodes, newBranchNodes }
 }
 
-async function createNewRoot (newBranchNodes, root, newNodes, opts, nodeOptions, distance) {
+async function createNewRoot (that, newBranchNodes, root, newNodes, opts, nodeOptions, distance) {
   const firstRootEntry = new opts.BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
 
   const leafEntries = await Promise.all(
@@ -220,7 +220,7 @@ async function createNewRoot (newBranchNodes, root, newNodes, opts, nodeOptions,
   const newRoots = await Node.from({
     ...nodeOptions,
     entries: newRootEntries,
-    chunker: this.chunker,
+    chunker: that.chunker,
     NodeClass: opts.BranchClass,
     distance: distance + 1
   })
@@ -228,12 +228,12 @@ async function createNewRoot (newBranchNodes, root, newNodes, opts, nodeOptions,
   return newRoots
 }
 
-async function processRoot (results, bulk, opts, nodeOptions) {
+async function processRoot (that, results, bulk, opts, nodeOptions) {
   const root = results.root
   const distance = root.distance
   const first = root.entryList.startKey
   const inserts = []
-  const encode = this.encode.bind(this)
+  const encode = that.encode.bind(that)
 
   for (const b of bulk) {
     const { key, del } = b
@@ -245,7 +245,7 @@ async function processRoot (results, bulk, opts, nodeOptions) {
   }
 
   if (inserts.length) {
-    await newInsertsBulker(inserts, opts, nodeOptions, distance, encode, root, results)
+    await newInsertsBulker(that, inserts, opts, nodeOptions, distance, encode, root, results)
   }
 }
 
@@ -504,7 +504,7 @@ class Node {
 
     while (results.nodes.length > 1) {
       const distance = results.nodes[0].distance + 1
-      const entries = await processBranchEntries.call(this, results, results.nodes, opts)
+      const entries = await processBranchEntries(this, results, results.nodes, opts)
       results.nodes = await Node.from({ ...nodeOptions, entries, NodeClass: BranchClass, distance })
       const promises = results.nodes.map((node) => node.encode())
       ;(await Promise.all(promises)).forEach((b) => results.blocks.push(b))
@@ -514,7 +514,7 @@ class Node {
     results.root = root
 
     if (isRoot) {
-      await processRoot.call(this, results, bulk, opts, nodeOptions)
+      await processRoot(this, results, bulk, opts, nodeOptions)
     }
 
     return results
@@ -609,15 +609,15 @@ const create = async function * (obj) {
   }
 }
 
-async function newInsertsBulker (inserts, opts, nodeOptions, distance, encode, root, results) {
-  const newEntries = await createNewEntries.call(this, inserts, opts)
+async function newInsertsBulker (that, inserts, opts, nodeOptions, distance, encode, root, results) {
+  const newEntries = await createNewEntries(that, inserts, opts)
 
   if (newEntries.length === 0) {
     throw new Error('Failed to insert entries')
   }
 
-  const { newNodes, newBranchNodes } = await createNewBranchNodes.call(
-    this,
+  const { newNodes, newBranchNodes } = await createNewBranchNodes(
+    that,
     newEntries,
     opts,
     nodeOptions,
@@ -627,17 +627,17 @@ async function newInsertsBulker (inserts, opts, nodeOptions, distance, encode, r
 
   const newBranchBlocks = await Promise.all(
     newBranchNodes.map(async (node) => {
-      return await encodeNodeWithoutCircularReference(this, node, encode)
+      return await encodeNodeWithoutCircularReference(that, node, encode)
     })
   )
 
-  const newRoots = await createNewRoot.call(this, newBranchNodes, root, newNodes, opts, nodeOptions, distance)
+  const newRoots = await createNewRoot(that, newBranchNodes, root, newNodes, opts, nodeOptions, distance)
 
   const rootBlocks = await Promise.all(newRoots.map(async (node) => await node.encode()))
 
   const encodedRootBlocks = await Promise.all(
     rootBlocks.map(async (block) => {
-      return await encodeNodeWithoutCircularReference(this, block, encode)
+      return await encodeNodeWithoutCircularReference(that, block, encode)
     })
   )
 
