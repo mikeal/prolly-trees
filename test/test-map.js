@@ -5,7 +5,7 @@ import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { nocache, global as globalCache } from '../src/cache.js'
 import { bf, simpleCompare as compare } from '../src/utils.js'
-
+import { createNewEntries } from '../src/base.js'
 const chunker = bf(3)
 
 const cache = nocache
@@ -483,6 +483,34 @@ describe('map', () => {
       same(result, value)
     }
   })
+  it('should create new entries in the correct order when chunker returns true for non-empty bulk', async () => {
+    // Replace with the correct initialization of `that` and `opts`
+    const that = {
+      compare: (a, b) => a - b
+    }
+    const opts = {
+      LeafEntryClass: function (insert) {
+        this.key = insert.key
+      },
+      compare: (a, b) => a - b
+    }
+
+    const inserts = [
+      { key: 3 },
+      { key: 1 },
+      { key: 2 }
+    ]
+
+    const expectedResult = [
+      { key: 1 },
+      { key: 2 },
+      { key: 3 }
+    ]
+
+    const newEntries = await createNewEntries.call(that, inserts, opts)
+    same(newEntries, expectedResult)
+  })
+
   it('delete multiple entries within range', async () => {
     const updatedList = [
       { key: 'a', value: 1 },
