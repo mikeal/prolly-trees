@@ -209,15 +209,10 @@ async function createNewBranchNodes (newEntries, opts, nodeOptions, LeafClass, d
 }
 
 async function createNewRoot (newBranchNodes, root, newNodes, opts, nodeOptions, distance) {
-  const firstRootEntry = new opts.BranchEntryClass(
-    { key: root.entryList.startKey, address: await root.address },
-    opts
-  )
+  const firstRootEntry = new opts.BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
 
   const leafEntries = await Promise.all(
-    newNodes.map(async (node) =>
-      new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts)
-    )
+    newNodes.map(async (node) => new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts))
   )
 
   const newRootEntries = [firstRootEntry, ...leafEntries, ...newBranchNodes[0].entryList.entries]
@@ -250,33 +245,7 @@ async function processRoot (results, bulk, opts, nodeOptions) {
   }
 
   if (inserts.length) {
-    const newEntries = await createNewEntries.call(this, inserts, opts)
-
-    if (newEntries.length === 0) {
-      throw new Error('Failed to insert entries')
-    }
-
-    const { newNodes, newBranchNodes } = await createNewBranchNodes.call(this, newEntries, opts, nodeOptions, opts.LeafClass, distance)
-
-    const newBranchBlocks = await Promise.all(
-      newBranchNodes.map(async (node) => {
-        return await encodeNodeWithoutCircularReference(this, node, encode)
-      })
-    )
-
-    const newRoots = await createNewRoot.call(this, newBranchNodes, root, newNodes, opts, nodeOptions, distance)
-
-    const rootBlocks = await Promise.all(newRoots.map(async (node) => await node.encode()))
-
-    const encodedRootBlocks = await Promise.all(
-      rootBlocks.map(async (block) => {
-        return await encodeNodeWithoutCircularReference(this, block, encode)
-      })
-    )
-
-    results.root = newRoots[0]
-    results.blocks = [...results.blocks, ...newBranchBlocks, ...encodedRootBlocks]
-    results.nodes = newNodes.concat(newRoots)
+    await newInsertsBulker(inserts, opts, nodeOptions, distance, encode, root, results)
   }
 }
 
@@ -638,6 +607,43 @@ const create = async function * (obj) {
     yield * nodes
     distance++
   }
+}
+
+async function newInsertsBulker (inserts, opts, nodeOptions, distance, encode, root, results) {
+  const newEntries = await createNewEntries.call(this, inserts, opts)
+
+  if (newEntries.length === 0) {
+    throw new Error('Failed to insert entries')
+  }
+
+  const { newNodes, newBranchNodes } = await createNewBranchNodes.call(
+    this,
+    newEntries,
+    opts,
+    nodeOptions,
+    opts.LeafClass,
+    distance
+  )
+
+  const newBranchBlocks = await Promise.all(
+    newBranchNodes.map(async (node) => {
+      return await encodeNodeWithoutCircularReference(this, node, encode)
+    })
+  )
+
+  const newRoots = await createNewRoot.call(this, newBranchNodes, root, newNodes, opts, nodeOptions, distance)
+
+  const rootBlocks = await Promise.all(newRoots.map(async (node) => await node.encode()))
+
+  const encodedRootBlocks = await Promise.all(
+    rootBlocks.map(async (block) => {
+      return await encodeNodeWithoutCircularReference(this, block, encode)
+    })
+  )
+
+  results.root = newRoots[0]
+  results.blocks = [...results.blocks, ...newBranchBlocks, ...encodedRootBlocks]
+  results.nodes = newNodes.concat(newRoots)
 }
 
 export { Node, Entry, EntryList, IPLDNode, IPLDLeaf, IPLDBranch, create }
