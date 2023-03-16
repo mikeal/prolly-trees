@@ -601,7 +601,7 @@ describe('map', () => {
     // console.log('updatedRoot', updatedRoot)
     // Verify the inserted keys and their values
     for (const key of keysToInsert) {
-      const value = await updatedRoot[0].get(key)
+      const value = await updatedRoot.get(key)
       same(value, -1)
     }
 
