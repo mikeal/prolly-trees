@@ -598,15 +598,15 @@ describe('map', () => {
 
     const { blocks, root: updatedRoot } = await root.bulk(bulk, { ...opts, chunker: customChunker })
     await Promise.all(blocks.map(block => put(block)))
-
+    // console.log('updatedRoot', updatedRoot)
     // Verify the inserted keys and their values
     for (const key of keysToInsert) {
-      const value = await updatedRoot.get(key)
+      const value = await updatedRoot[0].get(key)
       same(value, -1)
     }
 
     // Get the existing keys after insertion and sort them
-    const { result: entries } = await updatedRoot.getEntries(['-3', 'zz'])
+    const { result: entries } = await updatedRoot[0].getEntries(['-3', 'zz'])
     const resultingKeys = entries.map(({ key }) => key)
 
     resultingKeys.sort(compare)

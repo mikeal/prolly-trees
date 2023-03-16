@@ -386,19 +386,15 @@ class Node {
       }
       if (inserts.length) {
         // traverse to left most leaf node
-        // const theChunker = this.chunker
         let leaf = this
         while (!leaf.isLeaf) {
           const index = leaf.entryList.entries.findIndex((entry) => this.compare(entry.key, inserts[0].key) > 0)
           const entry = new BranchEntryClass(leaf.entryList.entries[index], opts)
           leaf = await this.getNode(await entry.address)
         }
-        // create new nodes from leaf entries in and Node.from( )
+        // create new nodes from leaf entries and insert them into the tree
         const newEntries = []
         const entries = []
-        // const newInserts = []
-        // const deletesList = []
-
         for (const insert of inserts) {
           const index = entries.findIndex(entry => this.compare(entry.key, insert.key) > 0)
           if (index >= 0) {
@@ -420,46 +416,43 @@ class Node {
             newEntries.push(chunk)
           }
         }
-
         if (newEntries.length === 0) {
           throw new Error('Failed to insert entries')
         }
-        // const nodes =
-        await Promise.all(newEntries.map(entries => Node.from({
+        const newNodes = await Promise.all(newEntries.map(entries => Node.from({
+          ...nodeOptions,
           entries,
           chunker: this.chunker,
           NodeClass: LeafClass,
-          distance: 0,
-          ...opts
+          distance: 0
         })))
+        const newRootEntries = [new BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts), ...await Promise.all(newNodes.map(async node => new BranchEntryClass({ key: node.key, address: await node.address }, opts)))]
+        const newRoot = await Node.from({ ...nodeOptions, entries: newRootEntries, chunker: this.chunker, NodeClass: BranchClass, distance: root.distance + 1 })
 
-        // merge back up the tree
-        while (leaf) {
-          const bulk = []
-          const previous = []
-          const node = null
-          let start = null
-          const deletes = []
-          for (const entry of leaf.entryList.entries) {
-            if (!node) {
-              const delIndex = deletes.findIndex(del => this.compare(del.key, entry.key) === 0)
-              if (delIndex === -1) {
-                bulk.push({ key: entry.key, value: entry.value })
-                previous.push(entry)
-              }
-            }
-            start = start || entry.key
-            // end = entry.key
-          }
-          const [nextLeaf] = leaf.entryList.extra || []
-          // distance++
-          leaf = nextLeaf ? await this.getNode(await nextLeaf.address) : null
-        }
+        // console.log('Results:', results)
+        // console.log('New Nodes:', newNodes)
+
+        const encodedNodes = await Promise.all(newNodes.flat().map(async node => {
+          console.log('Type of node:', typeof node, 'Node:', node, node.length)
+          const value = await node.encodeNode()
+          const encodeOpts = { codec: this.codec, hasher: this.hasher, value }
+          return await encode(encodeOpts)
+        }))
+
+        console.log('Type of newRoot:', typeof newRoot, 'Node:', newRoot, newRoot.length)
+
+        const value = await newRoot[0].encodeNode()
+        const encodeOpts = { codec: this.codec, hasher: this.hasher, value }
+        const encodedRoot = await encode(encodeOpts)
+        // console.log('Encoded Root:', encodedRoot)
+
+        return { blocks: [...results.blocks, ...encodedNodes, encodedRoot], nodes: [newRoot], root: newRoot }
       } else {
         // If there are no new inserts, update the root
         results.root = root
       }
     }
+
     const finalRoot = results.root // protection from onBranch side effects
     await onBranch(root)
     results.root = finalRoot
@@ -510,6 +503,7 @@ class IPLDNode extends Node {
     const value = await this.encodeNode()
     const opts = { codec: this.codec, hasher: this.hasher, value }
     this.block = await encode(opts)
+    // this.block = await encode({ ...opts, codec: this.codec, hasher: this.hasher, value })
     return this.block
   }
 }
