@@ -186,13 +186,14 @@ async function createNewBranchEntries (newNodes, opts) {
   return newBranchEntries
 }
 
-async function encodeNodeWithoutCircularReference (node, encode) {
-  const { codec, hasher, block } = node
-  const value = await codec.encode(block.value)
+async function encodeNodeWithoutCircularReference (that, node, encode) {
+  const { codec, hasher } = that
+  const value = await codec.encode(node.value)
   const encodeOpts = { codec, hasher, value }
   return await encode(encodeOpts)
 }
-async function createNewBranchNodes (newEntries, opts, nodeOptions, LeafClass) {
+
+async function createNewBranchNodes (newEntries, opts, nodeOptions, LeafClass, distance) {
   const newNodes = await createNewNodes.call(this, newEntries, nodeOptions, LeafClass)
   const newBranchEntries = await createNewBranchEntries.call(this, newNodes, opts)
 
@@ -201,13 +202,13 @@ async function createNewBranchNodes (newEntries, opts, nodeOptions, LeafClass) {
     entries: newBranchEntries,
     chunker: this.chunker,
     NodeClass: opts.BranchClass,
-    distance: this.root.distance + 1
+    distance: distance + 1
   })
 
   return { newNodes, newBranchNodes }
 }
 
-async function createNewRoot (newBranchNodes, root, newNodes, opts, nodeOptions) {
+async function createNewRoot (newBranchNodes, root, newNodes, opts, nodeOptions, distance) {
   const firstRootEntry = new opts.BranchEntryClass(
     { key: root.entryList.startKey, address: await root.address },
     opts
@@ -226,7 +227,7 @@ async function createNewRoot (newBranchNodes, root, newNodes, opts, nodeOptions)
     entries: newRootEntries,
     chunker: this.chunker,
     NodeClass: opts.BranchClass,
-    distance: root.distance + 1
+    distance: distance + 1
   })
 
   return newRoots
@@ -234,8 +235,10 @@ async function createNewRoot (newBranchNodes, root, newNodes, opts, nodeOptions)
 
 async function processRoot (results, bulk, opts, nodeOptions) {
   const root = results.root
+  const distance = root.distance
   const first = root.entryList.startKey
   const inserts = []
+  const encode = this.encode.bind(this)
 
   for (const b of bulk) {
     const { key, del } = b
@@ -253,23 +256,21 @@ async function processRoot (results, bulk, opts, nodeOptions) {
       throw new Error('Failed to insert entries')
     }
 
-    const { newNodes, newBranchNodes } = await createNewBranchNodes.call(this, newEntries, opts, nodeOptions, opts.LeafClass)
+    const { newNodes, newBranchNodes } = await createNewBranchNodes.call(this, newEntries, opts, nodeOptions, opts.LeafClass, distance)
 
     const newBranchBlocks = await Promise.all(
       newBranchNodes.map(async (node) => {
-        return await encodeNodeWithoutCircularReference(node, encode)
+        return await encodeNodeWithoutCircularReference(this, node, encode)
       })
     )
 
-    const newRoots = await createNewRoot.call(this, newBranchNodes, root, newNodes, opts, nodeOptions)
+    const newRoots = await createNewRoot.call(this, newBranchNodes, root, newNodes, opts, nodeOptions, distance)
 
     const rootBlocks = await Promise.all(newRoots.map(async (node) => await node.encode()))
 
     const encodedRootBlocks = await Promise.all(
       rootBlocks.map(async (block) => {
-        const value = block
-        const encodeOpts = { codec: this.codec, hasher: this.hasher, value }
-        return await encode(encodeOpts)
+        return await encodeNodeWithoutCircularReference(this, block, encode)
       })
     )
 
