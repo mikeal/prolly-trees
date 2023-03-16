@@ -486,14 +486,12 @@ class Node {
             return await encode(encodeOpts)
           })
         )
-
-        return {
-          blocks: [...results.blocks, ...newBranchBlocks, ...encodedRootBlocks],
-          nodes: newNodes.concat(newRoots),
-          root: newRoots[0]
-        }
+        results.root = newRoots[0]
+        results.blocks = [...results.blocks, ...newBranchBlocks, ...encodedRootBlocks]
+        results.nodes = newNodes.concat(newRoots)
       }
     }
+    return results
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
