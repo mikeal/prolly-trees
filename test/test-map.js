@@ -750,7 +750,7 @@ describe('map', () => {
     same(actualKeys, expectedKeys)
   })
 
-  it.skip('big map', async () => {
+  it('big map', async () => {
     const { get, put } = storage()
     let mapRoot
     // let leaf
