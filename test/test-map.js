@@ -783,7 +783,8 @@ describe('map', () => {
         await Promise.all(blocks.map((block) => put(block)))
         mapRoot = root
         const { result: result3 } = await mapRoot.get(key).catch((e) => {
-          same(e.message, 'Failed at key: ' + key)
+          throw Error("Couldn't find key: " + key)
+          // same(e.message, 'Failed at key: ' + key)
         })
         same(result3, index)
       }
