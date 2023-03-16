@@ -162,14 +162,14 @@ async function createNewEntries (inserts, opts) {
   return newEntries
 }
 
-async function createNewNodes (newEntries, nodeOptions, LeafClass) {
-  return await Promise.all(
-    newEntries.map((entries) =>
+async function createNewNodes (entriesArray, nodeOptions, NodeClass) {
+  return Promise.all(
+    entriesArray.map((entries) =>
       Node.from({
-        ...nodeOptions,
+        ...JSON.parse(JSON.stringify(nodeOptions)), // Create a shallow copy of nodeOptions
         entries,
         chunker: this.chunker,
-        NodeClass: LeafClass,
+        NodeClass,
         distance: 0
       })
     )
@@ -185,6 +185,14 @@ async function createNewBranchEntries (newNodes, opts) {
   }
   return newBranchEntries
 }
+
+async function encodeNodeWithoutCircularReference (node, encode) {
+  const { codec, hasher, block } = node
+  const value = await codec.encode(block.value)
+  const encodeOpts = { codec, hasher, value }
+  return await encode(encodeOpts)
+}
+
 async function processRoot (results, bulk, opts, nodeOptions) {
   const root = results.root
   const { BranchClass, LeafClass, BranchEntryClass } = opts
@@ -220,24 +228,20 @@ async function processRoot (results, bulk, opts, nodeOptions) {
 
     const newBranchBlocks = await Promise.all(
       newBranchNodes.map(async (node) => {
-        const value = await node.encode()
-        const encodeOpts = { codec: this.codec, hasher: this.hasher, value }
-        return await encode(encodeOpts)
+        return await encodeNodeWithoutCircularReference(node, encode)
       })
     )
-
     // Add the root as the first entry in the new branch
     const firstRootEntry = new BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
-
     // Create new root entries from branch and leaf entries
+    const leafEntries = await Promise.all(
+      newNodes.map(async (node) => new BranchEntryClass({ key: node.key, address: await node.address }, opts))
+    )
+
     const newRootEntries = [
       firstRootEntry,
-      ...(await Promise.all(
-        newNodes.map(async (node) => new BranchEntryClass({ key: node.key, address: await node.address }, opts))
-      )),
-      ...newBranchEntries.map(
-        async (entry) => new BranchEntryClass({ key: entry.key, address: await entry.address }, opts)
-      )
+      ...leafEntries,
+      ...newBranchEntries
     ]
 
     // Create a new root node from the new root entries
