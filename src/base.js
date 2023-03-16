@@ -123,9 +123,71 @@ async function processBranchEntries (results, nodes, opts) {
   return entries
 }
 
+export async function getLeafNode (inserts, opts) {
+  let leaf = this
+  while (!leaf.isLeaf) {
+    const index = leaf.entryList.entries.findIndex((entry) => this.compare(entry.key, inserts[0].key) > 0)
+    const entry = new opts.BranchEntryClass(leaf.entryList.entries[index], opts)
+    leaf = await this.getNode(await entry.address)
+  }
+  return leaf
+}
+
+async function createNewEntries (inserts, opts) {
+  const newEntries = []
+  const entries = []
+  for (const insert of inserts) {
+    const index = entries.findIndex((entry) => this.compare(entry.key, insert.key) > 0)
+    if (index >= 0) {
+      entries.splice(index, 0, new opts.LeafEntryClass(insert, opts))
+    } else {
+      entries.push(new opts.LeafEntryClass(insert, opts))
+    }
+  }
+
+  if (entries.length) {
+    let chunk = []
+    for (const entry of entries) {
+      chunk.push(entry)
+      if (await this.chunker(entry, 0)) {
+        newEntries.push(chunk)
+        chunk = []
+      }
+    }
+    if (chunk.length) {
+      newEntries.push(chunk)
+    }
+  }
+
+  return newEntries
+}
+
+async function createNewNodes (newEntries, nodeOptions, LeafClass) {
+  return await Promise.all(
+    newEntries.map((entries) =>
+      Node.from({
+        ...nodeOptions,
+        entries,
+        chunker: this.chunker,
+        NodeClass: LeafClass,
+        distance: 0
+      })
+    )
+  )
+}
+
+async function createNewBranchEntries (newNodes, opts) {
+  const newBranchEntries = []
+  for (const node of newNodes) {
+    const key = await node.key
+    const address = await node.address
+    newBranchEntries.push(new opts.BranchEntryClass({ key, address }, opts))
+  }
+  return newBranchEntries
+}
 async function processRoot (results, bulk, opts, nodeOptions) {
   const root = results.root
-  const { BranchClass, LeafClass, BranchEntryClass, LeafEntryClass } = opts
+  const { BranchClass, LeafClass, BranchEntryClass } = opts
   const first = root.entryList.startKey
   const inserts = []
 
@@ -137,70 +199,20 @@ async function processRoot (results, bulk, opts, nodeOptions) {
       break
     }
   }
+
   if (inserts.length) {
-    // Traverse to left most leaf node
-    let leaf = this
-    while (!leaf.isLeaf) {
-      const index = leaf.entryList.entries.findIndex((entry) => this.compare(entry.key, inserts[0].key) > 0)
-      const entry = new BranchEntryClass(leaf.entryList.entries[index], opts)
-      leaf = await this.getNode(await entry.address)
-    }
-
-    // Create new nodes from leaf entries and insert them into the tree
-    const newEntries = []
-    const entries = []
-    for (const insert of inserts) {
-      const index = entries.findIndex((entry) => this.compare(entry.key, insert.key) > 0)
-      if (index >= 0) {
-        entries.splice(index, 0, new LeafEntryClass(insert, opts))
-      } else {
-        entries.push(new LeafEntryClass(insert, opts))
-      }
-    }
-
-    if (entries.length) {
-      let chunk = []
-      for (const entry of entries) {
-        chunk.push(entry)
-        if (await this.chunker(entry, 0)) {
-          newEntries.push(chunk)
-          chunk = []
-        }
-      }
-      if (chunk.length) {
-        newEntries.push(chunk)
-      }
-    }
-
+    // const leaf = await getLeafNode.call(this, inserts, opts)
+    const newEntries = await createNewEntries.call(this, inserts, opts)
     if (newEntries.length === 0) {
       throw new Error('Failed to insert entries')
     }
 
-    // Create new leaf nodes from the entries and insert them into the tree
-    const newNodes = await Promise.all(
-      newEntries.map((entries) =>
-        Node.from({
-          ...nodeOptions,
-          entries,
-          chunker: this.chunker,
-          NodeClass: LeafClass,
-          distance: 0
-        })
-      )
-    )
+    const newNodes = await createNewNodes.call(this, newEntries, nodeOptions, LeafClass)
+    const newBranchEntries = await createNewBranchEntries.call(this, newNodes, opts)
 
-    // Create new branch entries for each leaf node
-    const newBranchEntries = []
-    for (const node of newNodes) {
-      const key = await node.key
-      const address = await node.address
-      newBranchEntries.push(new BranchEntryClass({ key, address }, opts))
-    }
-
-    // Create a new branch node with the new branch entries and add it to the tree
     const newBranchNodes = await Node.from({
       ...nodeOptions,
-      entries,
+      entries: newBranchEntries, // Fixed this line
       chunker: this.chunker,
       NodeClass: BranchClass,
       distance: root.distance + 1
