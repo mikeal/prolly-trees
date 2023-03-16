@@ -123,17 +123,7 @@ async function processBranchEntries (that, results, nodes, opts) {
   return entries
 }
 
-export async function getLeafNode (inserts, opts) {
-  let leaf = this
-  while (!leaf.isLeaf) {
-    const index = leaf.entryList.entries.findIndex((entry) => this.compare(entry.key, inserts[0].key) > 0)
-    const entry = new opts.BranchEntryClass(leaf.entryList.entries[index], opts)
-    leaf = await this.getNode(await entry.address)
-  }
-  return leaf
-}
-
-async function createNewEntries (that, inserts, opts) {
+export async function createNewEntries (that, inserts, opts) {
   const newEntries = []
   const entries = []
   for (const insert of inserts) {
