@@ -397,7 +397,7 @@ class Node {
         const newEntries = []
         const entries = []
         const newInserts = []
-        const deletesList = []
+        // const deletesList = []
 
         for (const insert of inserts) {
           const index = entries.findIndex(entry => this.compare(entry.key, insert.key) > 0)
@@ -424,7 +424,8 @@ class Node {
         if (newEntries.length === 0) {
           throw new Error('Failed to insert entries')
         }
-        const nodes = await Promise.all(newEntries.map(entries => Node.from({
+        // const nodes =
+        await Promise.all(newEntries.map(entries => Node.from({
           entries,
           chunker: this.chunker,
           NodeClass: LeafClass,
@@ -433,96 +434,105 @@ class Node {
         })))
 
         // merge back up the tree
-        let distance = 0
+        // let distance = 0
         while (leaf) {
           const bulk = []
           const previous = []
-          let node = null
-          let entries = []
+          const node = null
+          // const entries = []
           let start = null
-          let end = null
+          // const end = null
           const deletes = []
 
           // collect all deletes in the range
-          for (const del of deletesList) {
-            if (this.compare(del.key, leaf.entryList.startKey) >= 0 && this.compare(del.key, leaf.entryList.endKey) <= 0) {
-              deletes.push(del)
-            }
-          }
+          // for (const del of deletesList) {
+          //   throw new Error('unreachable')
+          //   if (this.compare(del.key, leaf.entryList.startKey) >= 0 && this.compare(del.key, leaf.entryList.endKey) <= 0) {
+          //     deletes.push(del)
+          //   }
+          // }
 
           for (const entry of leaf.entryList.entries) {
             if (!node) {
               if (newInserts.length && this.compare(newInserts[0].key, entry.key) < 0) {
-                node = nodes.shift()
-                if (!node) {
-                  throw new Error('Failed to insert entries')
-                }
-                entries = node
-                  .entryList
-                  .entries
-                  .filter((entry) => this.compare(entry.key, start) >= 0 && this.compare(entry.key, end) <= 0)
+                throw new Error('unreachable')
+                // node = nodes.shift()
+                // if (!node) {
+                //   throw new Error('Failed to insert entries')
+                // }
+                // entries = node
+                //   .entryList
+                //   .entries
+                //   .filter((entry) => this.compare(entry.key, start) >= 0 && this.compare(entry.key, end) <= 0)
               }
             }
             if (node) {
-              bulk.push({ del: true, key: entry.key })
-              previous.push(entry)
-              const index = entries.findIndex((entry2) => this.compare(entry2.key, entry.key) > 0)
-              if (index >= 0) {
-                entries.splice(index, 0, entry)
-              } else {
-                entries.push(entry)
-              }
-              if (await this.chunker(entry, distance)) {
-                const { root, blocks } = await node.bulk(bulk, { ...opts, isRoot: false })
-                newInserts.push({ key: root.entryList.startKey, address: await root.cid(), size: await root.size() })
-                results.blocks = results.blocks.concat(blocks)
-                results.previous = results.previous.concat(previous)
-                bulk.splice(0, bulk.length)
-                previous.splice(0, previous.length)
-                node = null
-              }
+              throw new Error('unreachable')
+              // bulk.push({ del: true, key: entry.key })
+              // previous.push(entry)
+              // const index = entries.findIndex((entry2) => this.compare(entry2.key, entry.key) > 0)
+              // if (index >= 0) {
+              //   entries.splice(index, 0, entry)
+              // } else {
+              //   entries.push(entry)
+              // }
+              // if (await this.chunker(entry, distance)) {
+              //   const { root, blocks } = await node.bulk(bulk, { ...opts, isRoot: false })
+              //   newInserts.push({ key: root.entryList.startKey, address: await root.cid(), size: await root.size() })
+              //   results.blocks = results.blocks.concat(blocks)
+              //   results.previous = results.previous.concat(previous)
+              //   bulk.splice(0, bulk.length)
+              //   previous.splice(0, previous.length)
+              //   node = null
+              // }
             } else {
               const delIndex = deletes.findIndex(del => this.compare(del.key, entry.key) === 0)
               if (delIndex === -1) {
                 bulk.push({ key: entry.key, value: entry.value })
                 previous.push(entry)
               } else {
-                deletes.splice(delIndex, 1)
+                throw new Error('unreachable')
+                // deletes.splice(delIndex, 1)
               }
             }
             start = start || entry.key
-            end = entry.key
+            // end = entry.key
           }
           if (node && bulk.length) {
-            const { root, blocks } = await node.bulk(bulk, { ...opts, isRoot: false })
-            newInserts.push({ key: root.entryList.startKey, address: await root.cid(), size: await root.size() })
-            results.blocks = results.blocks.concat(blocks)
-            results.previous = results.previous.concat(previous)
+            throw new Error('unreachable')
+            // const { root, blocks } = await node.bulk(bulk, { ...opts, isRoot: false })
+            // newInserts.push({ key: root.entryList.startKey, address: await root.cid(), size: await root.size() })
+            // results.blocks = results.blocks.concat(blocks)
+            // results.previous = results.previous.concat(previous)
           }
           const [nextLeaf] = leaf.entryList.extra || []
-          distance++
+          // distance++
           leaf = nextLeaf ? await this.getNode(await nextLeaf.address) : null
         }// ad the throws
 
         // Delete the remaining entries
         const deletes = []
-        for (const del of deletesList) {
-          const index = results.previous.findIndex(entry => this.compare(entry.key, del.key) === 0)
-          if (index !== -1) {
-            const entry = results.previous.splice(index, 1)[0]
-            deletes.push(entry)
-          }
-        }
+        // for (const del of deletesList) {
+        //   throw new Error('unreachable')
+
+        //   const index = results.previous.findIndex(entry => this.compare(entry.key, del.key) === 0)
+        //   if (index !== -1) {
+        //     const entry = results.previous.splice(index, 1)[0]
+        //     deletes.push(entry)
+        //   }
+        // }
         if (deletes.length) {
-          const root = await this.getRoot()
-          const { blocks } = await root.bulk(deletes.map(entry => ({ del: true, key: entry.key })), opts)
-          results.blocks = results.blocks.concat(blocks)
+          throw new Error('unreachable')
+          // const root = await this.getRoot()
+          // const { blocks } = await root.bulk(deletes.map(entry => ({ del: true, key: entry.key })), opts)
+          // results.blocks = results.blocks.concat(blocks)
         }
         if (newInserts.length) {
-          const newRootEntries = [new BranchEntryClass(await root.cid(), opts.compare)].concat(newInserts.map(i => new BranchEntryClass(i, opts)))
-          const newRoot = await Node.from({ ...nodeOptions, entries: newRootEntries, NodeClass: BranchClass, distance: root.distance + 1 })
-          await onBranch(newRoot)
-          results.root = newRoot
+          throw new Error('unreachable')
+          // const newRootEntries = [new BranchEntryClass(await root.cid(), opts.compare)].concat(newInserts.map(i => new BranchEntryClass(i, opts)))
+          // const newRoot = await Node.from({ ...nodeOptions, entries: newRootEntries, NodeClass: BranchClass, distance: root.distance + 1 })
+          // await onBranch(newRoot)
+          // results.root = newRoot
         }
         // return results
       } else {
