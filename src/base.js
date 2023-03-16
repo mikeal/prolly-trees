@@ -378,14 +378,15 @@ class Node {
         }
       }
       if (inserts.length) {
-        // traverse to left most leaf node
+        // Traverse to left most leaf node
         let leaf = this
         while (!leaf.isLeaf) {
           const index = leaf.entryList.entries.findIndex((entry) => this.compare(entry.key, inserts[0].key) > 0)
           const entry = new BranchEntryClass(leaf.entryList.entries[index], opts)
           leaf = await this.getNode(await entry.address)
         }
-        // create new nodes from leaf entries and insert them into the tree
+
+        // Create new nodes from leaf entries and insert them into the tree
         const newEntries = []
         const entries = []
         for (const insert of inserts) {
@@ -396,6 +397,7 @@ class Node {
             entries.push(new LeafEntryClass(insert, opts))
           }
         }
+
         if (entries.length) {
           let chunk = []
           for (const entry of entries) {
@@ -409,11 +411,12 @@ class Node {
             newEntries.push(chunk)
           }
         }
+
         if (newEntries.length === 0) {
           throw new Error('Failed to insert entries')
         }
 
-        // create new leaf nodes from the entries and insert them into the tree
+        // Create new leaf nodes from the entries and insert them into the tree
         const newNodes = await Promise.all(
           newEntries.map((entries) =>
             Node.from({
@@ -426,7 +429,7 @@ class Node {
           )
         )
 
-        // create new branch entries for each leaf node
+        // Create new branch entries for each leaf node
         const newBranchEntries = []
         for (const node of newNodes) {
           const key = await node.key
@@ -434,37 +437,39 @@ class Node {
           newBranchEntries.push(new BranchEntryClass({ key, address }, opts))
         }
 
-        // add the root as the first entry in the new branch
-        const firstRootEntry = new BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
-
-        // create a new branch node with the new branch entries and add it to the tree
+        // Create a new branch node with the new branch entries and add it to the tree
         const newBranchNodes = await Node.from({
           ...nodeOptions,
-          entries: entries,
+          entries,
           chunker: this.chunker,
           NodeClass: BranchClass,
           distance: root.distance + 1
         })
 
-        const branchBlocks = await Promise.all(newBranchNodes.map(async (node) => await node.encode()))
         const newBranchBlocks = await Promise.all(
-          branchBlocks.map(async (block) => {
-            const value = block
+          newBranchNodes.map(async (node) => {
+            const value = await node.encode()
             const encodeOpts = { codec: this.codec, hasher: this.hasher, value }
             return await encode(encodeOpts)
           })
         )
 
+        // Add the root as the first entry in the new branch
+        const firstRootEntry = new BranchEntryClass(
+          { key: root.entryList.startKey, address: await root.address },
+          opts
+        )
+
+        // Create new root entries from branch and leaf entries
         const newRootEntries = [
-          new BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts),
+          firstRootEntry,
           ...(await Promise.all(
             newNodes.map(async (node) => new BranchEntryClass({ key: node.key, address: await node.address }, opts))
           )),
-          ...newBranchEntries.map(
-            async (entry) => new BranchEntryClass({ key: entry.key, address: await entry.address }, opts)
-          )
+          ...newBranchEntries.map(async (entry) => new BranchEntryClass({ key: entry.key, address: await entry.address }, opts))
         ]
 
+        // Create a new root node from the new root entries
         const newRoots = await Node.from({
           ...nodeOptions,
           entries: newRootEntries,
@@ -472,6 +477,7 @@ class Node {
           NodeClass: BranchClass,
           distance: root.distance + 1
         })
+
         const rootBlocks = await Promise.all(newRoots.map(async (node) => await node.encode()))
         const encodedRootBlocks = await Promise.all(
           rootBlocks.map(async (block) => {
@@ -482,8 +488,8 @@ class Node {
         )
 
         return {
-          blocks: [...results.blocks, ...encodedNodes, ...newBranchBlocks, ...encodedRootBlocks],
-          nodes: newRoots,
+          blocks: [...results.blocks, ...newBranchBlocks, ...encodedRootBlocks],
+          nodes: newNodes.concat(newRoots),
           root: newRoots[0]
         }
       }
