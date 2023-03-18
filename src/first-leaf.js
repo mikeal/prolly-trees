@@ -1,4 +1,4 @@
-import { Node } from './base.js'
+import { Node, processBranchEntries } from './base.js'
 
 export async function newInsertsBulker (that, inserts, opts, nodeOptions, distance, encode, root, results) {
   console.log('newInsertsBulker', Object.keys(that), inserts, Object.keys({ ...opts, ...nodeOptions }), distance, typeof encode, root.entryList.entries.map(({ key }) => key), Object.keys(results))
@@ -17,7 +17,7 @@ export async function newInsertsBulker (that, inserts, opts, nodeOptions, distan
     opts,
     nodeOptions,
     opts.LeafClass,
-    distance
+    distance, results
   )
   console.log('New Nodes:', newNodes.map(node => JSON.stringify(node?.entryList ? node?.entryList.entries : node)))
   console.log('New Branch Nodes:', newBranchNodes.map(node => JSON.stringify(node.entryList.entries)))
@@ -54,6 +54,7 @@ export async function newInsertsBulker (that, inserts, opts, nodeOptions, distan
   results.nodes = newNodes.concat(newRoots)
 }
 
+// exported for testing
 export async function createNewLeafEntries (that, inserts, opts) {
   const newEntries = []
   const entries = []
@@ -88,11 +89,10 @@ export async function createNewLeafEntries (that, inserts, opts) {
   return newEntries
 }
 
-async function createNewBranchNodes (that, newEntries, opts, nodeOptions, LeafClass, distance) {
+async function createNewBranchNodes (that, newEntries, opts, nodeOptions, LeafClass, distance, results) {
   const newNodes = await createNewNodes(that, newEntries, nodeOptions, LeafClass)
 
-  // the issue is newNodes are leaves, we should put them into a branch entry, not turn them into branch
-  const newBranchEntries = await createNewBranchEntries(that, newNodes, opts)
+  const newBranchEntries = await processBranchEntries(that, results, newNodes, opts)
 
   const newBranchNodes = await Node.from({
     ...nodeOptions,
@@ -184,15 +184,15 @@ async function createNewNodes (that, entriesArray, nodeOptions, NodeClass) {
   )
 }
 
-async function createNewBranchEntries (that, newNodes, opts) {
-  // the issue is newNodes are leaves, we should put them into a branch entry, not turn them into branch entries?
-  // we should refactor what we are doing so we can use processBranchEntries without modifying it
-  const newBranchEntries = []
-  for (const node of newNodes) {
-    const key = await node.key
-    const address = await node.address
-    console.log('await node.address', address)
-    newBranchEntries.push(new opts.BranchEntryClass({ key, address }, opts))
-  }
-  return newBranchEntries
-}
+// async function createNewBranchEntries (that, newNodes, opts) {
+//   // the issue is newNodes are leaves, we should put them into a branch entry, not turn them into branch entries?
+//   // we should refactor what we are doing so we can use processBranchEntries without modifying it
+//   const newBranchEntries = []
+//   for (const node of newNodes) {
+//     const key = await node.key
+//     const address = await node.address
+//     console.log('await node.address', address)
+//     newBranchEntries.push(new opts.BranchEntryClass({ key, address }, opts))
+//   }
+//   return newBranchEntries
+// }

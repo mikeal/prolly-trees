@@ -124,7 +124,7 @@ async function processBranch (that, results, branch) {
  * @param {Object} opts - {codec, hasher, getNode, compare, cache, sorted, ...} - An object containing options for processing the nodes.
  * @returns {Array} An array of BranchEntryClass instances.
 */
-async function processBranchEntries (that, results, nodes, opts) {
+export async function processBranchEntries (that, results, nodes, opts) {
   const entries = await Promise.all(nodes.map(async (node) => {
     await processBranch(that, results, node)
     return new opts.BranchEntryClass(node, opts)
