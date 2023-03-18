@@ -5,7 +5,7 @@ import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { nocache, global as globalCache } from '../src/cache.js'
 import { bf, simpleCompare as compare } from '../src/utils.js'
-import { createNewLeafEntries } from '../src/base.js'
+import { createNewLeafEntries } from '../src/first-leaf.js'
 const chunker = bf(3)
 
 const cache = nocache
