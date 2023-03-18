@@ -346,6 +346,145 @@ describe('map', () => {
     await Promise.all(blocks.map((block) => put(block)))
     same((await rr.get('aaa')).result, 3)
   })
+  it('minimal test case with leftmost key insertion', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: 'original', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    // Verify the initial entry
+    const { result: initialResult } = await mapRoot.get('original')
+    same(initialResult, 1)
+
+    // Insert a new leftmost key
+    const bulk = [{ key: 'before', value: 2 }]
+    const { blocks, root } = await mapRoot.bulk(bulk)
+    for (const block of blocks) {
+      await put(block)
+    }
+
+    mapRoot = root
+
+    // Verify the new leftmost key
+    const { result: newResult } = await mapRoot.get('before')
+    same(newResult, 2)
+
+    // Verify that the original entry still exists and has the correct value
+    const { result: updatedResult } = await mapRoot.get('original')
+    same(updatedResult, 1)
+  })
+  it('minimal test case with leftmost key insertion and custom always-split chunker', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: 'original', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    // Verify the initial entry
+    const { result: initialResult } = await mapRoot.get('original')
+    same(initialResult, 1)
+
+    // Custom chunker that always returns true for splitting
+    const alwaysSplitChunker = async (entry, distance) => {
+      return true
+    }
+
+    // Insert a new leftmost key
+    const bulk = [{ key: 'before', value: 2 }]
+    const { blocks, root } = await mapRoot.bulk(bulk, { ...opts, chunker: alwaysSplitChunker })
+    for (const block of blocks) {
+      await put(block)
+    }
+
+    mapRoot = root
+
+    // Verify the new leftmost key
+    const { result: newResult } = await mapRoot.get('before')
+    same(newResult, 2)
+
+    // Verify that the original entry still exists and has the correct value
+    const { result: updatedResult } = await mapRoot.get('original')
+    same(updatedResult, 1)
+  })
+
+  it('basic numeric string key with specific keys and no loops', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    const list = createList([
+
+      ['b', 1],
+      ['bb', 2],
+      ['c', 1],
+      ['cc', 2]
+    ])
+
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const { result } = await mapRoot.get('c').catch((e) => {
+      same(e.message, 'Failed at key: c')
+    })
+    same(result, 1)
+
+    const errors = []
+
+    // First key, should pass
+    const key1 = 'ba'
+    const value1 = '97-ba'
+    const bulk1 = [{ key: key1, value: value1 }]
+    const { blocks: blocks1, root: root1 } = await mapRoot.bulk(bulk1)
+    for (const block of blocks1) {
+      await put(block)
+    }
+    mapRoot = root1
+    await mapRoot
+      .get(key1)
+      .then(() => {
+        // console.log('got', key1, value1);
+      })
+      .catch((e) => {
+        errors.push({ key: key1, value: value1 })
+      })
+
+    // Second key, should fail in the original test
+    const key2 = 'a'
+    const value2 = `32-${key2}`
+    const bulk2 = [{ key: key2, value: value2 }]
+    const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulk2)
+    for (const block of blocks2) {
+      await put(block)
+    }
+    mapRoot = root2
+    await mapRoot
+      .get(key2)
+      .then(() => {
+        // console.log('got', key2, value2);
+      })
+      .catch((e) => {
+        errors.push({ key: key2, value: value2 })
+      })
+
+    console.log('ok keys', 2 - errors.length)
+    console.log('unhandled keys', errors.length)
+    console.log(
+      'unhandled keys',
+      errors.map(({ key }) => key)
+    )
+    same(errors.length, 0)
+  })
+
   it('basic numeric string key', async () => {
     const { get, put } = storage()
     let mapRoot
@@ -486,7 +625,8 @@ describe('map', () => {
   it('should create new entries in the correct order when chunker returns true for non-empty bulk', async () => {
     // Replace with the correct initialization of `that` and `opts`
     const that = {
-      compare: (a, b) => a - b
+      compare: (a, b) => a - b,
+      chunker
     }
     const opts = {
       LeafEntryClass: function (insert) {
@@ -495,6 +635,8 @@ describe('map', () => {
       compare: (a, b) => a - b
     }
 
+    opts.LeafEntryClass.prototype.identity = function () { return this.key }
+
     const inserts = [
       { key: 3 },
       { key: 1 },
@@ -502,13 +644,13 @@ describe('map', () => {
     ]
 
     const expectedResult = [
-      { key: 1 },
-      { key: 2 },
-      { key: 3 }
+      [{ key: 1 }],
+      [{ key: 2 }],
+      [{ key: 3 }]
     ]
 
-    const newEntries = await createNewEntries.call(that, inserts, opts)
-    same(newEntries, expectedResult)
+    const newEntries = await createNewEntries(that, inserts, opts)
+    same(newEntries.flat().map(({ key }) => key), expectedResult.flat().map(({ key }) => key))
   })
 
   it('delete multiple entries within range', async () => {
