@@ -113,25 +113,37 @@ async function processBranch (that, results, branch) {
   that.cache.set(branch)
 }
 
+/**
+ * Processes an array of nodes by calling processBranch for each node,
+ * and returns an array of BranchEntryClass instances.
+ *
+ * @param {*} that - {codec, hasher, getNode, compare, cache, chunker} - The value of the `this` keyword as passed from bulk to processBranch.
+ * @param {Object} results - {root, nodes: [{encode()}], blocks: [...]} - An object containing the results of processing the nodes.
+ * @param {Array} nodes - [{encode()}] - An array of nodes to process.
+ * @param {Object} opts - {codec, hasher, getNode, compare, cache, sorted, ...} - An object containing options for processing the nodes.
+ * @returns {Array} An array of BranchEntryClass instances.
+ */
 async function processBranchEntries (that, results, nodes, opts) {
-  const entries = await Promise.all(
-    nodes.map(async (node) => {
-      await processBranch(that, results, node)
-      return new opts.BranchEntryClass(node, opts)
-    })
-  )
+  const entries = await Promise.all(nodes.map(async (node) => {
+    await processBranch(that, results, node)
+    return new opts.BranchEntryClass(node, opts)
+  }))
+
   return entries
 }
 
-export async function createNewEntries (that, inserts, opts) {
+export async function createNewLeafEntries (that, inserts, opts) {
   const newEntries = []
   const entries = []
   for (const insert of inserts) {
     const index = entries.findIndex((entry) => that.compare(entry.key, insert.key) > 0)
+    const entry = new opts.LeafEntryClass(insert, opts)
+    console.log('LeafEntryClass createNewLeafEntries', entry.constructor.name, JSON.stringify([entry.key, entry.address, entry.codec, entry.hasher]))
+    // these arent supposed to have addresses
     if (index >= 0) {
-      entries.splice(index, 0, new opts.LeafEntryClass(insert, opts))
+      entries.splice(index, 0, entry)
     } else {
-      entries.push(new opts.LeafEntryClass(insert, opts))
+      entries.push(entry)
     }
   }
 
@@ -139,7 +151,7 @@ export async function createNewEntries (that, inserts, opts) {
     let chunk = []
     for (const entry of entries) {
       chunk.push(entry)
-      console.log('push Entry', entry)
+      console.log('push Entry', entry.constructor.name, JSON.stringify([entry.key, entry.address, entry.codec, entry.hasher]))
       // await entry.address
       if (await that.chunker(entry, 0)) {
         newEntries.push(chunk)
@@ -156,8 +168,9 @@ export async function createNewEntries (that, inserts, opts) {
 
 async function createNewNodes (that, entriesArray, nodeOptions, NodeClass) {
   return Promise.all(
-    entriesArray.map((entries) => {
-      console.log('Node.from entries', entries, JSON.stringify(nodeOptions))
+    entriesArray.map(async (entries) => {
+      const addresses = await entries.map(async (entry) => await entry.address)
+      console.log('Node.from entries', entries, JSON.stringify(nodeOptions), await Promise.all(addresses))
       return Node.from({
         ...JSON.parse(JSON.stringify(nodeOptions)), // Create a shallow copy of nodeOptions
         entries,
@@ -170,10 +183,13 @@ async function createNewNodes (that, entriesArray, nodeOptions, NodeClass) {
 }
 
 async function createNewBranchEntries (that, newNodes, opts) {
+  // the issue is newNodes are leaves, we should put them into a branch entry, not turn them into branch entries?
+
   const newBranchEntries = []
   for (const node of newNodes) {
     const key = await node.key
     const address = await node.address
+    console.log('await node.address', address)
     newBranchEntries.push(new opts.BranchEntryClass({ key, address }, opts))
   }
   return newBranchEntries
@@ -189,6 +205,8 @@ async function encodeNodeWithoutCircularReference (that, node, encode) {
 
 async function createNewBranchNodes (that, newEntries, opts, nodeOptions, LeafClass, distance) {
   const newNodes = await createNewNodes(that, newEntries, nodeOptions, LeafClass)
+
+  // the issue is newNodes are leaves, we should put them into a branch entry, not turn them into branch
   const newBranchEntries = await createNewBranchEntries(that, newNodes, opts)
 
   const newBranchNodes = await Node.from({
@@ -198,13 +216,13 @@ async function createNewBranchNodes (that, newEntries, opts, nodeOptions, LeafCl
     NodeClass: opts.BranchClass,
     distance: distance + 1
   })
-
+  // both of these are arrays of Node.from results
   return { newNodes, newBranchNodes }
 }
 
 async function createNewRoot (that, newBranchNodes, root, newNodes, opts, nodeOptions, distance) {
   console.log('Creating New Root:')
-  console.log('Opts:', opts)
+  // console.log('Opts:', opts)
   console.log(
     'New Branch Nodes:',
     newBranchNodes.map((node) => JSON.stringify(node.entryList.entries))
@@ -218,6 +236,7 @@ async function createNewRoot (that, newBranchNodes, root, newNodes, opts, nodeOp
   )
 
   // find leftmost entry in root
+  console.log('opts.BranchEntryClass', JSON.stringify([opts.codec, opts.hasher]))
   const firstRootEntry = new opts.BranchEntryClass(
     { key: root.entryList.startKey, address: await root.address },
     opts
@@ -428,6 +447,7 @@ class Node {
         if (deletes.has(skey)) {
           deletes.set(skey, i)
         } else {
+          console.log('LeafEntryClass transaction', entry.key.toString(), JSON.stringify(changes[skey]))
           entries[i] = new LeafEntryClass(changes[skey], opts)
           delete changes[skey]
         }
@@ -436,7 +456,11 @@ class Node {
       for (const [, i] of deletes) {
         entries.splice(i - count++, 1)
       }
-      const appends = Object.values(changes).map((obj) => new LeafEntryClass(obj, opts))
+      const appends = Object.values(changes).map((obj) => {
+        console.log('LeafEntryClass appends', obj.key.toString(), JSON.stringify(obj))
+
+        return new LeafEntryClass(obj, opts)
+      })
       // TODO: there's a faster version of this that only does one iteration
       entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
       const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
@@ -526,11 +550,28 @@ class Node {
     const results = await this.transaction(bulk, opts)
 
     while (results.nodes.length > 1) {
-      const distance = results.nodes[0].distance + 1
-      const entries = await processBranchEntries(this, results, results.nodes, opts)
-      results.nodes = await Node.from({ ...nodeOptions, entries, NodeClass: BranchClass, distance })
-      const promises = results.nodes.map(async (node) => await node.encode())
-      ;(await Promise.all(promises)).forEach((b) => results.blocks.push(b))
+      const newDistance = results.nodes[0].distance + 1
+
+      const branchEntries = await processBranchEntries(
+        this,
+        results,
+        results.nodes,
+        opts
+      )
+
+      const newNodes = await Node.from({
+        ...nodeOptions,
+        entries: branchEntries,
+        NodeClass: BranchClass,
+        distance: newDistance
+      })
+
+      const encodedBlocks = await Promise.all(newNodes.map(async (node) => {
+        return await node.encode()
+      }))
+
+      results.nodes = newNodes
+      results.blocks.push(...encodedBlocks)
     }
 
     const [root] = results.nodes
@@ -544,7 +585,7 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
-    console.log('from', distance, JSON.stringify(entries), NodeClass.name)
+    // console.log('from', distance, JSON.stringify(entries), NodeClass.name)
     const parts = []
     let chunk = []
     for (const entry of entries) {
@@ -566,7 +607,7 @@ class Node {
 
 class IPLDNode extends Node {
   constructor ({ codec, hasher, block, ...opts }) {
-    console.log('IPLDNode opts:', opts) // Add this line
+    // console.log('IPLDNode opts:', JSON.stringify([codec, hasher])) // Add this line
     super(opts)
     this.codec = codec
     this.hasher = hasher
@@ -631,6 +672,7 @@ class IPLDLeaf extends IPLDNode {
 
 const create = async function * (obj) {
   let { LeafClass, LeafEntryClass, BranchClass, BranchEntryClass, list, chunker, compare, ...opts } = obj
+  console.log('LeafEntryClass create', list)
   list = list.map((value) => new LeafEntryClass(value, opts))
   opts.compare = compare
   let nodes = await Node.from({ entries: list, chunker, NodeClass: LeafClass, distance: 0, opts })
@@ -648,7 +690,7 @@ const create = async function * (obj) {
 async function newInsertsBulker (that, inserts, opts, nodeOptions, distance, encode, root, results) {
   console.log('newInsertsBulker', Object.keys(that), inserts, Object.keys({ ...opts, ...nodeOptions }), distance, typeof encode, root.entryList.entries.map(({ key }) => key), Object.keys(results))
   // this returns chunked LeafEntryClass entries
-  const newEntries = await createNewEntries(that, inserts, opts)
+  const newEntries = await createNewLeafEntries(that, inserts, opts)
   console.log('New Entries:', newEntries)
 
   if (newEntries.length === 0) {
