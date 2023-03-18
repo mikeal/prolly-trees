@@ -623,7 +623,10 @@ describe('map', () => {
     }
   })
   it('should create new entries in the correct order when chunker returns true for leftmost non-empty bulk', async () => {
-    // Replace with the correct initialization of `that` and `opts`
+    const chunker = (entry, distance) => {
+      return distance === 0 // This will create a new node for every leaf entry at distance 0
+    }
+
     const that = {
       compare: (a, b) => a - b,
       chunker
@@ -649,12 +652,19 @@ describe('map', () => {
       [{ key: 3 }]
     ]
 
-    opts.LeafClass = function () {
-      this.entries = []
+    opts.LeafClass = function ({ entryList }) {
+      this.entries = entryList.entries
     }
 
-    const newEntries = await createNewLeafEntries(that, inserts, opts)
-    console.log('newEntries', newEntries)
+    const nodeEntries = await createNewLeafEntries(that, inserts, opts)
+    // Convert the leaf entries into the expected format
+    const newEntries = nodeEntries.map((leafEntry) => {
+      return leafEntry.entries.map((entry) => {
+        return { key: entry.key }
+      })
+    })
+
+    console.log('test newEntries', newEntries)
     same(newEntries.length, expectedResult.length)
     same(newEntries.map(e => Object.keys(e).sort()), expectedResult.map(e => Object.keys(e).sort()))
     same(newEntries.flat().map(({ key }) => key), expectedResult.flat().map(({ key }) => key))
