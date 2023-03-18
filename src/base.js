@@ -440,13 +440,14 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
-    // console.log('from', distance, JSON.stringify(entries), NodeClass.name)
+    console.log('Node.from entries:', entries.length)
+
     const parts = []
     let chunk = []
     for (const entry of entries) {
       chunk.push(entry)
       if (!entry.identity) {
-        console.log('entry', entry)
+        console.log('missing entry.identity', entry)
       }
       if (await chunker(entry, distance)) {
         parts.push(new EntryList({ entries: chunk, closed: true }))
@@ -456,6 +457,9 @@ class Node {
     if (chunk.length) {
       parts.push(new EntryList({ entries: chunk, closed: false }))
     }
+
+    console.log('Node.from parts:', parts.length)
+
     return parts.map((entryList) => new NodeClass({ entryList, chunker, distance, ...opts }))
   }
 }
