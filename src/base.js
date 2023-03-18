@@ -118,11 +118,11 @@ async function processBranch (that, results, branch) {
  * and returns an array of BranchEntryClass instances.
  *
  * @param {*} that - {codec, hasher, getNode, compare, cache, chunker} - The value of the `this` keyword as passed from bulk to processBranch.
- * @param {Object} results - {root, nodes: [{encode()}], blocks: [...]} - An object containing the results of processing the nodes.
+ * @param {Object} results - {root, nodes: [{encode()}], blocks: [...], getAllEntries(): Promise, bulk(): Promise, previous: Array<{key, value}>} - An object containing the results of processing the nodes, along with the results of the entire bulk operation.
  * @param {Array} nodes - [{encode()}] - An array of nodes to process.
  * @param {Object} opts - {codec, hasher, getNode, compare, cache, sorted, ...} - An object containing options for processing the nodes.
  * @returns {Array} An array of BranchEntryClass instances.
- */
+*/
 async function processBranchEntries (that, results, nodes, opts) {
   const entries = await Promise.all(nodes.map(async (node) => {
     await processBranch(that, results, node)
@@ -184,7 +184,7 @@ async function createNewNodes (that, entriesArray, nodeOptions, NodeClass) {
 
 async function createNewBranchEntries (that, newNodes, opts) {
   // the issue is newNodes are leaves, we should put them into a branch entry, not turn them into branch entries?
-
+  // we should refactor what we are doing so we can use processBranchEntries without modifying it
   const newBranchEntries = []
   for (const node of newNodes) {
     const key = await node.key
