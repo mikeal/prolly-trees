@@ -54,14 +54,16 @@ export async function newInsertsBulker (that, inserts, opts, nodeOptions, distan
   results.nodes = newNodes.concat(newRoots)
 }
 
-// exported for testing
 export async function createNewLeafEntries (that, inserts, opts) {
-  const newEntries = []
   const entries = []
   for (const insert of inserts) {
     const index = entries.findIndex((entry) => that.compare(entry.key, insert.key) > 0)
     const entry = new opts.LeafEntryClass(insert, opts)
-    console.log('LeafEntryClass createNewLeafEntries', entry.constructor.name, JSON.stringify([entry.key, entry.address, entry.codec, entry.hasher]))
+    console.log(
+      'LeafEntryClass createNewLeafEntries',
+      entry.constructor.name,
+      JSON.stringify([entry.key, entry.address, entry.codec, entry.hasher])
+    )
     // these arent supposed to have addresses
     if (index >= 0) {
       entries.splice(index, 0, entry)
@@ -70,23 +72,16 @@ export async function createNewLeafEntries (that, inserts, opts) {
     }
   }
 
-  if (entries.length) {
-    let chunk = []
-    for (const entry of entries) {
-      chunk.push(entry)
-      console.log('push Entry', entry.constructor.name, JSON.stringify([entry.key, entry.address, entry.codec, entry.hasher]))
-      // await entry.address
-      if (await that.chunker(entry, 0)) {
-        newEntries.push(chunk)
-        chunk = []
-      }
-    }
-    if (chunk.length) {
-      newEntries.push(chunk)
-    }
-  }
-
-  return newEntries
+  // Use Node.from to generate the new leaf entries
+  const newLeafEntries = await Node.from({
+    entries: entries,
+    chunker: that.chunker,
+    NodeClass: opts.LeafClass,
+    distance: 0,
+    opts: opts
+  })
+  console.log('newLeafEntries', await Promise.all(newLeafEntries.map(async entry => await JSON.stringify([entry.entryList.entries, (await entry.address).toString()]))))
+  return newLeafEntries
 }
 
 async function createNewBranchNodes (that, newEntries, opts, nodeOptions, LeafClass, distance, results) {
