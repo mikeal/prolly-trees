@@ -5,7 +5,7 @@ import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { nocache, global as globalCache } from '../src/cache.js'
 import { bf, simpleCompare as compare } from '../src/utils.js'
-import { createNewEntries } from '../src/base.js'
+import { createNewLeafEntries } from '../src/base.js'
 const chunker = bf(3)
 
 const cache = nocache
@@ -649,7 +649,7 @@ describe('map', () => {
       [{ key: 3 }]
     ]
 
-    const newEntries = await createNewEntries(that, inserts, opts)
+    const newEntries = await createNewLeafEntries(that, inserts, opts)
     same(newEntries.flat().map(({ key }) => key), expectedResult.flat().map(({ key }) => key))
   })
 
