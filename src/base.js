@@ -119,7 +119,7 @@ async function sortBulk (bulk, opts) {
  * @returns {Array} An array of BranchEntryClass instances.
 */
 export async function processBranchEntries (that, results, nodes, opts) {
-  console.log('processBranchEntries', that.value, Object.keys(results), await nodes.map(async (n) => await n.address), Object.keys(opts))
+  // console.log('processBranchEntries', that.value, Object.keys(results), await nodes.map(async (n) => await n.address), Object.keys(opts))
   const entries = await Promise.all(nodes.map(async (node) => {
     const block = await node.encode()
     results.blocks.push(block)
@@ -130,7 +130,7 @@ export async function processBranchEntries (that, results, nodes, opts) {
   return entries
 }
 
-async function processRoot (that, results, bulk, opts, nodeOptions) {
+async function processRoot (that, results, bulk, nodeOptions) {
   const root = results.root
   const distance = root.distance
   const first = root.entryList.startKey
@@ -139,7 +139,7 @@ async function processRoot (that, results, bulk, opts, nodeOptions) {
 
   for (const b of bulk) {
     const { key, del } = b
-    if (opts.compare(key, first) < 0) {
+    if (nodeOptions.opts.compare(key, first) < 0) {
       if (!del) inserts.push(b)
     } else {
       break
@@ -147,7 +147,7 @@ async function processRoot (that, results, bulk, opts, nodeOptions) {
   }
 
   if (inserts.length) {
-    await newInsertsBulker(that, inserts, opts, nodeOptions, distance, encode, root, results)
+    await newInsertsBulker(that, inserts, nodeOptions, distance, encode, root, results)
   }
 }
 
@@ -302,7 +302,7 @@ class Node {
         if (deletes.has(skey)) {
           deletes.set(skey, i)
         } else {
-          console.log('LeafEntryClass transaction', entry.key.toString(), JSON.stringify(changes[skey]))
+          // console.log('LeafEntryClass transaction', entry.key.toString(), JSON.stringify(changes[skey]))
           entries[i] = new LeafEntryClass(changes[skey], opts)
           delete changes[skey]
         }
@@ -312,7 +312,7 @@ class Node {
         entries.splice(i - count++, 1)
       }
       const appends = Object.values(changes).map((obj) => {
-        console.log('LeafEntryClass appends', obj.key.toString(), JSON.stringify(obj))
+        // console.log('LeafEntryClass appends', obj.key.toString(), JSON.stringify(obj))
 
         return new LeafEntryClass(obj, opts)
       })
@@ -433,21 +433,22 @@ class Node {
     results.root = root
 
     if (isRoot) {
-      await processRoot(this, results, bulk, opts, nodeOptions)
+      await processRoot(this, results, bulk, nodeOptions)
     }
 
     return results
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
-    console.log('Node.from entries:', entries.length)
+    // console.log('Node.from entries:', entries.length)
 
     const parts = []
     let chunk = []
     for (const entry of entries) {
       chunk.push(entry)
       if (!entry.identity) {
-        console.log('missing entry.identity', entry)
+        console.log('missing entry.identity', entry, chunker)
+        // throw new Error('missing entry.identity')
       }
       if (await chunker(entry, distance)) {
         parts.push(new EntryList({ entries: chunk, closed: true }))
@@ -458,7 +459,7 @@ class Node {
       parts.push(new EntryList({ entries: chunk, closed: false }))
     }
 
-    console.log('Node.from parts:', parts.length)
+    // console.log('Node.from parts:', parts.length)
 
     return parts.map((entryList) => new NodeClass({ entryList, chunker, distance, ...opts }))
   }
@@ -531,7 +532,7 @@ class IPLDLeaf extends IPLDNode {
 
 const create = async function * (obj) {
   let { LeafClass, LeafEntryClass, BranchClass, BranchEntryClass, list, chunker, compare, ...opts } = obj
-  console.log('LeafEntryClass create', list)
+  // console.log('LeafEntryClass create', list)
   list = list.map((value) => new LeafEntryClass(value, opts))
   opts.compare = compare
   let nodes = await Node.from({ entries: list, chunker, NodeClass: LeafClass, distance: 0, opts })

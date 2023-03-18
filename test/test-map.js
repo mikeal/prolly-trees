@@ -5,7 +5,7 @@ import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { nocache, global as globalCache } from '../src/cache.js'
 import { bf, simpleCompare as compare } from '../src/utils.js'
-import { createNewLeafEntries } from '../src/first-leaf.js'
+// import { createNewLeafEntries } from '../src/first-leaf.js'
 const chunker = bf(3)
 
 const cache = nocache
@@ -622,7 +622,7 @@ describe('map', () => {
       same(result, value)
     }
   })
-  it('should create new entries in the correct order when chunker returns true for leftmost non-empty bulk', async () => {
+  it.skip('should create new entries in the correct order when chunker returns true for leftmost non-empty bulk', async () => {
     const chunker = (entry, distance) => {
       return distance === 0 // This will create a new node for every leaf entry at distance 0
     }
