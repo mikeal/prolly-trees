@@ -622,7 +622,7 @@ describe('map', () => {
       same(result, value)
     }
   })
-  it('should create new entries in the correct order when chunker returns true for non-empty bulk', async () => {
+  it('should create new entries in the correct order when chunker returns true for leftmost non-empty bulk', async () => {
     // Replace with the correct initialization of `that` and `opts`
     const that = {
       compare: (a, b) => a - b,
@@ -649,7 +649,14 @@ describe('map', () => {
       [{ key: 3 }]
     ]
 
+    opts.LeafClass = function () {
+      this.entries = []
+    }
+
     const newEntries = await createNewLeafEntries(that, inserts, opts)
+    console.log('newEntries', newEntries)
+    same(newEntries.length, expectedResult.length)
+    same(newEntries.map(e => Object.keys(e).sort()), expectedResult.map(e => Object.keys(e).sort()))
     same(newEntries.flat().map(({ key }) => key), expectedResult.flat().map(({ key }) => key))
   })
 

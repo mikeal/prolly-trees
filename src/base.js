@@ -108,12 +108,6 @@ async function sortBulk (bulk, opts) {
   return bulk.sort(({ key: a }, { key: b }) => opts.compare(a, b))
 }
 
-async function processBranch (that, results, branch) {
-  const block = await branch.encode()
-  results.blocks.push(block)
-  that.cache.set(branch)
-}
-
 /**
  * Processes an array of nodes by calling processBranch for each node,
  * and returns an array of BranchEntryClass instances.
@@ -125,8 +119,11 @@ async function processBranch (that, results, branch) {
  * @returns {Array} An array of BranchEntryClass instances.
 */
 export async function processBranchEntries (that, results, nodes, opts) {
+  console.log('processBranchEntries', that.value, Object.keys(results), await nodes.map(async (n) => await n.address), Object.keys(opts))
   const entries = await Promise.all(nodes.map(async (node) => {
-    await processBranch(that, results, node)
+    const block = await node.encode()
+    results.blocks.push(block)
+    that.cache.set(node)
     return new opts.BranchEntryClass(node, opts)
   }))
 
