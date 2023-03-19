@@ -1,13 +1,14 @@
 import { encode as multiformatEncode } from 'multiformats/block'
+import { encodeNodeWithoutCircularReference } from '../src/first-leaf.js'
 
 /* globals describe, it */
 import { deepStrictEqual as same } from 'assert'
-import { create, load } from '../src/map.js'
+import { create } from '../src/map.js'
 import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
-import { nocache, global as globalCache } from '../src/cache.js'
+import { nocache } from '../src/cache.js'
 import { bf, simpleCompare as compare } from '../src/utils.js'
-import { encodeNodeWithoutCircularReference } from '../src/first-leaf.js'
+// import { EntryList } from '../src/base.js'
 const chunker = bf(3)
 
 const cache = nocache
@@ -31,13 +32,6 @@ const storage = () => {
 
 const opts = { cache, chunker, codec, hasher }
 
-const verify = (check, node) => {
-  same(check.isLeaf, node.isLeaf)
-  same(check.isBranch, node.isBranch)
-  same(check.entries, node.entryList.entries.length)
-  same(check.closed, node.closed)
-}
-
 const createList = (entries) => entries.map(([key, value]) => ({ key, value }))
 
 const list = createList([
@@ -52,6 +46,25 @@ const list = createList([
   ['z', 1],
   ['zz', 2]
 ])
+
+async function mfEncode () {
+  console.log('MapLeaf.encode', this.entryList?.startKey, this.block?.value)
+  if (this.block) return this.block
+
+  const value = await this.encodeNode()
+  const opts = { codec: this.codec, hasher: this.hasher, value }
+
+  console.log('encode options:', opts.value)
+
+  if (!opts.codec || !opts.hasher) {
+    console.trace('Missing codec or hasher')
+  }
+
+  this.block = await multiformatEncode(opts)
+  console.log('this.encode done', await this.block.cid)
+
+  return this.block
+}
 
 describe('map', () => {
   it('minimal test case with leftmost key insertion', async () => {
@@ -145,7 +158,8 @@ describe('map', () => {
     same(result, 1)
 
     // Test getting a key that does not exist
-    await mapRoot.get('a')
+    await mapRoot
+      .get('a')
       .then(() => {
         throw new Error('Key should not exist')
       })
@@ -154,7 +168,11 @@ describe('map', () => {
       })
 
     const everything0 = await mapRoot.getAllEntries()
-    console.log('everything0', everything0.cids, everything0.result.map(({ key, value }) => ({ key, value })))
+    console.log(
+      'everything0',
+      everything0.cids,
+      everything0.result.map(({ key, value }) => ({ key, value }))
+    )
 
     // Test bulk insert with a key that does not exist
     const key2 = 'a'
@@ -174,9 +192,14 @@ describe('map', () => {
     console.log('Root CID before getAllEntries:', (await mapRoot.address).toString())
 
     const everything1 = await mapRoot.getAllEntries()
-    console.log('everything1', everything1.cids, everything1.result.map(({ key, value }) => ({ key, value })))
+    console.log(
+      'everything1',
+      everything1.cids,
+      everything1.result.map(({ key, value }) => ({ key, value }))
+    )
 
-    await mapRoot.get(key2)
+    await mapRoot
+      .get(key2)
       .then((val) => {
         same(val, value2)
       })
@@ -188,7 +211,9 @@ describe('map', () => {
   it('test first-left encodeNodeWithoutCircularReference', async () => {
     const that = {
       codec: { encode: (e) => e + '1' },
-      encode (e) { return e.value + '2' }
+      encode (e) {
+        return e.value + '2'
+      }
     }
     const node = {
       block: { value: 'ok' }
@@ -199,7 +224,9 @@ describe('map', () => {
   it('test encodeNodeWithoutCircularReference with complex node', async () => {
     const that = {
       codec: { encode: (e) => JSON.stringify(e) },
-      encode (e) { return e.value + '2' }
+      encode (e) {
+        return e.value + '2'
+      }
     }
     const node = {
       block: {
@@ -215,7 +242,9 @@ describe('map', () => {
   it('test encodeNodeWithoutCircularReference with base64 encoding and buffer', async () => {
     const that = {
       codec: { encode: (e) => Buffer.from(JSON.stringify(e)).toString('base64') },
-      encode (e) { return e.value + '2' }
+      encode (e) {
+        return e.value + '2'
+      }
     }
     const node = {
       block: {
@@ -244,7 +273,9 @@ describe('map', () => {
 
     const that = {
       codec: { encode: customEncode },
-      encode (e) { return customDecode(e.value) }
+      encode (e) {
+        return customDecode(e.value)
+      }
     }
     const node = {
       block: {
@@ -262,7 +293,9 @@ describe('map', () => {
   it('test encodeNodeWithoutCircularReference with distinct inputs should produce distinct outputs', async () => {
     const that = {
       codec: { encode: (e) => JSON.stringify(e) },
-      encode (e) { return e.value + '2' }
+      encode (e) {
+        return e.value + '2'
+      }
     }
     const node1 = {
       block: {
@@ -287,7 +320,71 @@ describe('map', () => {
       throw new Error('encodeNodeWithoutCircularReference should produce distinct outputs for distinct inputs')
     }
   })
+  it('test encodeNodeWithoutCircularReference multiformats with distinct inputs should produce distinct outputs', async () => {
+    const that = {
+      codec,
+      hasher,
+      encode: mfEncode.bind({
+        codec,
+        hasher,
+        encodeNode: async (e) => {
+          const { entries } = that.entryList
+          const mapper = async (entry) => [entry.key, await entry.address]
+          const list = await Promise.all(entries.map(mapper))
+          return { branch: [that.distance, list], closed: that.closed }
+        }
+      }),
+      distance: 0,
+      closed: false
+    }
+    const node1 = {
+      block: {
+        value: {
+          key: 'exampleKey1',
+          data: 'exampleData1'
+        }
+      }
+    }
+    const node2 = {
+      block: {
+        value: {
+          key: 'exampleKey2',
+          data: 'exampleData2'
+        }
+      }
+    }
+    that.entryList = {
+      entries: [
+        {
+          key: 'exampleKey1',
+          address: {}
+        }
 
+      ]
+    }
+
+    const output1 = JSON.parse(JSON.stringify((await encodeNodeWithoutCircularReference(that, node1)).value))
+
+    that.entryList = {
+      entries: [
+
+        {
+          key: 'exampleKey2',
+          address: {}
+        }
+      ]
+    }
+
+    const output2 = JSON.parse(JSON.stringify((await encodeNodeWithoutCircularReference(that, node2)).value))
+
+    console.log('diffz', output1.branch, output2.branch)
+    // same(output1.value.branch[1], output2.value.branch[1])
+    // same(output1.value, output2.value)
+
+    if (JSON.stringify(output1) === JSON.stringify(output2)) {
+      throw new Error('encodeNodeWithoutCircularReference should produce distinct outputs for distinct inputs')
+    }
+  })
   it('basic numeric string key', async () => {
     const { get, put } = storage()
     let mapRoot
@@ -354,8 +451,12 @@ describe('map', () => {
     // Insert a new key-value pair that will cause the chunker to return true
     const keyToInsert = 'x'
     const valueToInsert = 42
-    const { blocks, root: updatedRoot, previous } = await root.bulk([{ key: keyToInsert, value: valueToInsert }], { chunker })
-    await Promise.all(blocks.map(block => put(block)))
+    const {
+      blocks,
+      root: updatedRoot,
+      previous
+    } = await root.bulk([{ key: keyToInsert, value: valueToInsert }], { chunker })
+    await Promise.all(blocks.map((block) => put(block)))
 
     // Verify the previous result is empty, as it's a new insertion
     same(previous, [])
@@ -369,53 +470,6 @@ describe('map', () => {
       const { result } = await updatedRoot.get(key)
       same(result, value)
     }
-  })
-  it.skip('should create new entries in the correct order when chunker returns true for leftmost non-empty bulk', async () => {
-    const chunker = (entry, distance) => {
-      return distance === 0 // This will create a new node for every leaf entry at distance 0
-    }
-
-    const that = {
-      compare: (a, b) => a - b,
-      chunker
-    }
-    const opts = {
-      LeafEntryClass: function (insert) {
-        this.key = insert.key
-      },
-      compare: (a, b) => a - b
-    }
-
-    opts.LeafEntryClass.prototype.identity = function () { return this.key }
-
-    const inserts = [
-      { key: 3 },
-      { key: 1 },
-      { key: 2 }
-    ]
-
-    const expectedResult = [
-      [{ key: 1 }],
-      [{ key: 2 }],
-      [{ key: 3 }]
-    ]
-
-    opts.LeafClass = function ({ entryList }) {
-      this.entries = entryList.entries
-    }
-
-    const nodeEntries = await createNewLeafEntries(that, inserts, opts)
-    // Convert the leaf entries into the expected format
-    const newEntries = nodeEntries.map((leafEntry) => {
-      return leafEntry.entries.map((entry) => {
-        return { key: entry.key }
-      })
-    })
-
-    console.log('test newEntries', newEntries)
-    same(newEntries.length, expectedResult.length)
-    same(newEntries.map(e => Object.keys(e).sort()), expectedResult.map(e => Object.keys(e).sort()))
-    same(newEntries.flat().map(({ key }) => key), expectedResult.flat().map(({ key }) => key))
   })
   it('inserts with custom chunker that triggers branch for uninitialized node', async () => {
     const { get, put } = storage()
@@ -432,10 +486,10 @@ describe('map', () => {
     }
 
     const keysToInsert = ['-1', '-2', '-3']
-    const bulk = keysToInsert.map(key => ({ key, value: -1 }))
+    const bulk = keysToInsert.map((key) => ({ key, value: -1 }))
 
     const { blocks, root: updatedRoot } = await root.bulk(bulk, { ...opts, chunker: customChunker })
-    await Promise.all(blocks.map(block => put(block)))
+    await Promise.all(blocks.map((block) => put(block)))
     // console.log('updatedRoot', updatedRoot)
     // Verify the inserted keys and their values
     for (const key of keysToInsert) {
@@ -453,7 +507,6 @@ describe('map', () => {
     const expectedKeys = ['a', 'b', 'cc', 'ff', 'h', 'z', '-1', '-2', '-3'].sort(compare)
     same(resultingKeys, expectedKeys)
   })
-
   it('insert multiple entries within range causing chunker function to return true', async () => {
     const initialList = [
       { key: 'a', value: 1 },
@@ -587,7 +640,6 @@ describe('map', () => {
     const expectedKeys = expected.map(([key]) => key)
     same(actualKeys, expectedKeys)
   })
-
   it('big map', async () => {
     const { get, put } = storage()
     let mapRoot
