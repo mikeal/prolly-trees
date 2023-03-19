@@ -556,8 +556,8 @@ class IPLDBranch extends IPLDNode {
 }
 
 class IPLDLeaf extends IPLDNode {
-  encodeNode () {
-    const list = this.entryList.entries.map((entry) => entry.encodeNode())
+  async encodeNode () {
+    const list = await Promise.all(this.entryList.entries.map(async (entry) => await entry.encodeNode()))
     return { leaf: list, closed: this.closed }
   }
 
