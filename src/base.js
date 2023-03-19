@@ -135,7 +135,6 @@ async function processRoot (that, results, bulk, nodeOptions) {
   const distance = root.distance
   const first = root.entryList.startKey
   const inserts = []
-  const encode = that.encode.bind(that)
 
   for (const b of bulk) {
     const { key, del } = b
@@ -147,7 +146,7 @@ async function processRoot (that, results, bulk, nodeOptions) {
   }
 
   if (inserts.length) {
-    await newInsertsBulker(that, inserts, nodeOptions, distance, encode, root, results)
+    await newInsertsBulker(that, inserts, nodeOptions, distance, root, results)
   }
 }
 
@@ -201,7 +200,10 @@ class Node {
       return this.entryList.entries
     } else {
       const { entries } = this.entryList
-      const mapper = async (entry) => this.getNode(await entry.address).then((node) => node._getAllEntries(cids))
+      const mapper = async (entry) => this.getNode(await entry.address).then((node) => node._getAllEntries(cids)).catch(async (err) => {
+        console.log('did not find', await entry.address)
+        throw err
+      })
       return Promise.all(entries.map(mapper)).then((results) => results.flat())
     }
   }
@@ -486,21 +488,20 @@ class IPLDNode extends Node {
   }
 
   async encode () {
+    console.log('MapLeaf.encode', this.entryList?.startKey, this.block?.value)
     if (this.block) return this.block
-
-    // console.log('MapLeaf.encode', this)
 
     const value = await this.encodeNode()
     const opts = { codec: this.codec, hasher: this.hasher, value }
 
-    // console.log('encode options:', opts)
+    console.log('encode options:', opts.value)
 
     if (!opts.codec || !opts.hasher) {
       console.trace('Missing codec or hasher')
     }
 
     this.block = await multiformatEncode(opts)
-    // console.log('this.encode done', this.block.cid)
+    console.log('this.encode done', await this.block.cid)
 
     return this.block
   }

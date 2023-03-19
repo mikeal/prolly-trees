@@ -1,6 +1,6 @@
 import { Node } from './base.js'
 
-export async function newInsertsBulker (that, inserts, nodeOptions, distance, encode, root, results) {
+export async function newInsertsBulker (that, inserts, nodeOptions, distance, root, results) {
   console.log(
     'newInsertsBulker',
     Object.keys(that),
@@ -11,30 +11,59 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, en
     root.entryList.entries.map(({ key }) => key),
     Object.keys(results)
   )
+
   const opts = nodeOptions.opts
-  // const chunker = nodeOptions.chunker
   const newLeaves = await createNewLeaves(that, inserts, opts)
+
   if (newLeaves.length === 0) {
     throw new Error('Failed to insert entries')
   }
-  const mapper = async (node) => new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts)
-  const entries = await Promise.all(newLeaves.map(mapper))
-  // const branches = await Node.from({ entries, chunker, NodeClass: opts.BranchClass, distance, opts })
-  const newLeafBlocks = await Promise.all(
-    newLeaves.map(async (node) => {
-      return await encodeNodeWithoutCircularReference(that, node, encode)
+
+  console.log('newLeaves:', await Promise.all(newLeaves.map(async (m) => await m.entryList)))
+
+  const branchEntries = await Promise.all(
+    newLeaves.map(async (node) => new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts))
+  )
+
+  const firstRootEntry = new opts.BranchEntryClass(
+    {
+      key: root.entryList.startKey,
+      address: await root.address
+    },
+    opts
+  )
+
+  const newRootEntries = [firstRootEntry, ...branchEntries]
+
+  console.log('newRootEntries:', await Promise.all(newRootEntries.map(async (m) => await m.address)))
+
+  const newBranches = await Node.from({
+    ...nodeOptions,
+    entries: newRootEntries,
+    chunker: that.chunker,
+    NodeClass: opts.BranchClass,
+    distance: distance + 1,
+    opts
+  })
+
+  const newBlocks = [...newLeaves, ...newBranches]
+
+  console.log('newBlocks:', await Promise.all(newBlocks.map(async (m) => await m.address)))
+
+  const encodedBlocks = await Promise.all(
+    newBlocks.map(async (block) => {
+      // console.log('encodedBlocks', await block.address)
+      const ad = await block.address
+      const enBlock = await encodeNodeWithoutCircularReference(that, block)
+      console.log('did encodedBlocks', ad, await enBlock.cid)
+      return enBlock
     })
   )
-  const newRoots = await createNewRoot(that, entries, root, newLeaves, opts, nodeOptions, distance)
-  const rootBlocks = await Promise.all(newRoots.map(async (node) => await node.encode()))
-  const encodedRootBlocks = await Promise.all(
-    rootBlocks.map(async (block) => {
-      return await encodeNodeWithoutCircularReference(that, block, encode)
-    })
-  )
-  results.root = newRoots[0]
-  results.blocks = [...results.blocks, ...newLeafBlocks, ...encodedRootBlocks]
-  results.nodes = newLeaves.concat(newRoots) // what about branches
+  // console.log('encodedBlocks:', await Promise.all(encodedBlocks.map(async (m) => await m.cid)))
+
+  results.root = newBranches[0]
+  results.blocks = [...results.blocks, ...encodedBlocks]
+  results.nodes = newLeaves.concat(newBranches)
 }
 
 /**
@@ -49,14 +78,13 @@ async function createNewLeaves (that, inserts, opts) {
   for (const insert of inserts) {
     const index = entries.findIndex((entry) => that.compare(entry.key, insert.key) > 0)
     const entry = new opts.LeafEntryClass(insert, opts)
-    // these arent supposed to have addresses
     if (index >= 0) {
       entries.splice(index, 0, entry)
     } else {
       entries.push(entry)
     }
   }
-  // console.log('entries:', entries)
+
   return await Node.from({
     entries,
     chunker: that.chunker,
@@ -66,44 +94,20 @@ async function createNewLeaves (that, inserts, opts) {
   })
 }
 
-async function encodeNodeWithoutCircularReference (that, node, encode) {
-  const { codec, hasher } = that
-  const value = await codec.encode(node.value)
-  const encodeOpts = { codec, hasher, value }
-
-  const result = await encode(encodeOpts)
-  return result
+const myencode = async (that, opts) => {
+  // console.log('encode', JSON.stringify(opts.value))
+  const encd = await that.encode(opts)
+  console.log('did encode', encd.value)
+  return encd
 }
 
-async function createNewRoot (that, branchEntries, root, newLeaves, opts, nodeOptions, distance) {
-  // find leftmost entry in root
-  const firstRootEntry = new opts.BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
-
-  const leafEntries = await Promise.all(
-    newLeaves.map(async (node) => {
-      console.log('createNewRoot', node.entryList?.startKey)
-      const key = node.entryList.startKey
-      const address = await node.address
-      console.log('createNewRoot address', address)
-      return new opts.BranchEntryClass({ key, address }, opts)
-    })
-  )
-
-  const newRootEntries = [firstRootEntry, ...leafEntries, ...branchEntries]
-  console.log(
-    'newRootEntries',
-    firstRootEntry.key,
-    leafEntries.map((e) => e.key),
-    branchEntries.map((e) => e.key)
-  )
-
-  const newRoots = await Node.from({
-    ...nodeOptions,
-    entries: newRootEntries,
-    chunker: that.chunker,
-    NodeClass: opts.BranchClass,
-    distance: distance + 1
-  })
-
-  return newRoots
+export async function encodeNodeWithoutCircularReference (that, node) {
+  const { codec, hasher } = that
+  // console.log('node', node)
+  console.log('node.value', node.block.value, node.value)
+  const value = await codec.encode(node.block.value)
+  console.log('encoded value', value.toString())
+  const encodeOpts = { codec, hasher, value }
+  const result = await myencode(that, encodeOpts)
+  return result
 }
