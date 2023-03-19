@@ -25,14 +25,6 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, en
       return await encodeNodeWithoutCircularReference(that, node, encode)
     })
   )
-  // create the content addressable blocks for the new nodes
-  // const newBranchBlocks = await Promise.all(
-  //   // do we also need to do this for newNodes, the leaf nodes?
-  //   branches.map(async (node) => {
-  //     return await encodeNodeWithoutCircularReference(that, node, encode)
-  //   })
-  // )
-  // find the leftmost leaf and merge to the new root -- we should look inside this one
   const newRoots = await createNewRoot(that, entries, root, newLeaves, opts, nodeOptions, distance)
   const rootBlocks = await Promise.all(newRoots.map(async (node) => await node.encode()))
   const encodedRootBlocks = await Promise.all(
@@ -46,22 +38,17 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, en
 }
 
 /**
-* Creates new leaf entries from an array of insert objects.
-* @param {*} that - {compare, codec, hasher, chunker} - The value of the this keyword passed from the caller.
-* @param {Array} inserts - An array of insert objects to create new leaf entries from.
-* @param {Object} opts - {codec, hasher, cache, sorted, ...} - An object containing options for creating new leaf entries.
-* @returns {Promise<Array>} An array of nodes created from the leaf entries.
-**/
+ * Creates new leaf entries from an array of insert objects.
+ * @param {*} that - {compare, codec, hasher, chunker} - The value of the this keyword passed from the caller.
+ * @param {Array} inserts - An array of insert objects to create new leaf entries from.
+ * @param {Object} opts - {codec, hasher, cache, sorted, ...} - An object containing options for creating new leaf entries.
+ * @returns {Promise<Array>} An array of nodes created from the leaf entries.
+ **/
 async function createNewLeaves (that, inserts, opts) {
   const entries = []
   for (const insert of inserts) {
     const index = entries.findIndex((entry) => that.compare(entry.key, insert.key) > 0)
     const entry = new opts.LeafEntryClass(insert, opts)
-    // console.log(
-    //   'LeafEntryClass createNewLeaves',
-    //   entry.constructor.name,
-    //   JSON.stringify([entry.key, entry.address, entry.codec, entry.hasher])
-    // )
     // these arent supposed to have addresses
     if (index >= 0) {
       entries.splice(index, 0, entry)
@@ -94,20 +81,21 @@ async function createNewRoot (that, branchEntries, root, newLeaves, opts, nodeOp
 
   const leafEntries = await Promise.all(
     newLeaves.map(async (node) => {
-      console.log('createNewRoot', node.cid, node.entryList?.startKey)
+      console.log('createNewRoot', node.entryList?.startKey)
       const key = node.entryList.startKey
       const address = await node.address
+      console.log('createNewRoot address', address)
       return new opts.BranchEntryClass({ key, address }, opts)
     })
   )
 
-  // const branchEntries = branches// .map((node) => node.entryList.entries).flat()
-
   const newRootEntries = [firstRootEntry, ...leafEntries, ...branchEntries]
-
-  // const fre = await that.getNode(await firstRootEntry.address)
-
-  console.log('newRootEntries', firstRootEntry.value, leafEntries.map((e) => e.value), branchEntries.map((e) => e.entryList))
+  console.log(
+    'newRootEntries',
+    firstRootEntry.key,
+    leafEntries.map((e) => e.key),
+    branchEntries.map((e) => e.key)
+  )
 
   const newRoots = await Node.from({
     ...nodeOptions,
