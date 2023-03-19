@@ -488,9 +488,9 @@ class IPLDNode extends Node {
   }
 
   async encode () {
-    console.log('MapLeaf.encode', this.entryList?.startKey, this.block?.value)
+    // console.log('MapLeaf-encode', this.entryList?.startKey, this.block?.value)
     if (this.block) return this.block
-
+    // console.log('MapLeaf-encode', await this.address)
     const value = await this.encodeNode()
     const opts = { codec: this.codec, hasher: this.hasher, value }
 

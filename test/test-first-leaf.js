@@ -208,6 +208,55 @@ describe('map', () => {
       })
   })
 
+  it('minimal reproduction of duplicate CID issue', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    const list = createList([
+      ['b', 1],
+      ['c', 1],
+      ['d', 1],
+      ['e', 1]
+    ])
+
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    // Test bulk insert with a key that does not exist
+    const key2 = 'a'
+    const value2 = `32-${key2}`
+    const bulk2 = [{ key: key2, value: value2 }]
+    const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulk2)
+    for (const block of blocks2) {
+      console.log('putting', block.value, block.cid.toString())
+      await put(block)
+    }
+
+    await put(root2.block)
+    const address = await root2.address
+    const gotRoot = await get(address)
+    console.log('root2', root2.entryList.entries.length, root2.entryList.startKey, gotRoot.value, address)
+    mapRoot = root2
+    console.log('Root CID before getAllEntries:', (await mapRoot.address).toString())
+
+    const everything1 = await mapRoot.getAllEntries()
+    console.log(
+      'everything1',
+      everything1.cids,
+      everything1.result.map(({ key, value }) => ({ key, value }))
+    )
+    await mapRoot
+      .get(key2)
+      .then((val) => {
+        same(val.result, value2)
+      })
+      .catch((e) => {
+        throw e
+      })
+  })
+
   it('test first-left encodeNodeWithoutCircularReference', async () => {
     const that = {
       codec: { encode: (e) => e + '1' },
@@ -321,65 +370,53 @@ describe('map', () => {
     }
   })
   it('test encodeNodeWithoutCircularReference multiformats with distinct inputs should produce distinct outputs', async () => {
-    const that = {
-      codec,
-      hasher,
-      encode: mfEncode.bind({
+    function createThat (entryList, distance, closed) {
+      return {
         codec,
         hasher,
-        encodeNode: async (e) => {
-          const { entries } = that.entryList
-          const mapper = async (entry) => [entry.key, await entry.address]
-          const list = await Promise.all(entries.map(mapper))
-          return { branch: [that.distance, list], closed: that.closed }
-        }
-      }),
-      distance: 0,
-      closed: false
-    }
-    const node1 = {
-      block: {
-        value: {
-          key: 'exampleKey1',
-          data: 'exampleData1'
-        }
+        encode: mfEncode.bind({
+          codec,
+          hasher,
+          encodeNode: async () => {
+            const mapper = (entry) => [entry.key, entry.address]
+            const list = entryList.entries.map(mapper)
+            console.log('encodeNode.called', distance, list, Math.random())
+            return { branch: [distance, list], closed }
+          }
+        }),
+        distance,
+        closed
       }
     }
-    const node2 = {
-      block: {
-        value: {
-          key: 'exampleKey2',
-          data: 'exampleData2'
-        }
-      }
-    }
-    that.entryList = {
+
+    const address1 = { key: 'exampleKey1', data: 'exampleData1', block: { value: 'ok1' } }
+    const address2 = { key: 'exampleKey2', data: 'exampleData2', block: { value: 'ok2' } }
+
+    const entryList1 = {
       entries: [
         {
           key: 'exampleKey1',
-          address: {}
-        }
-
-      ]
-    }
-
-    const output1 = JSON.parse(JSON.stringify((await encodeNodeWithoutCircularReference(that, node1)).value))
-
-    that.entryList = {
-      entries: [
-
-        {
-          key: 'exampleKey2',
-          address: {}
+          address: address1
         }
       ]
     }
 
-    const output2 = JSON.parse(JSON.stringify((await encodeNodeWithoutCircularReference(that, node2)).value))
+    const that1 = createThat(entryList1, 0, false)
+    const output1 = JSON.parse(JSON.stringify((await encodeNodeWithoutCircularReference(that1, address1)).value))
 
-    console.log('diffz', output1.branch, output2.branch)
-    // same(output1.value.branch[1], output2.value.branch[1])
-    // same(output1.value, output2.value)
+    const entryList2 = {
+      entries: [
+        {
+          key: 'exampleKey2',
+          address: address2
+        }
+      ]
+    }
+
+    const that2 = createThat(entryList2, 0, false)
+    const output2 = JSON.parse(JSON.stringify((await encodeNodeWithoutCircularReference(that2, address2)).value))
+
+    console.log('diffz', output1.branch[1], output2.branch[1])
 
     if (JSON.stringify(output1) === JSON.stringify(output2)) {
       throw new Error('encodeNodeWithoutCircularReference should produce distinct outputs for distinct inputs')
