@@ -442,7 +442,7 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
-    console.log('Node.from entries:', entries)
+    // console.log('Node.from entries:', entries)
 
     const parts = []
     let chunk = []
@@ -462,7 +462,7 @@ class Node {
       parts.push(new EntryList({ entries: chunk, closed: false }))
     }
 
-    console.log('Node.from parts:', parts.map((p) => p.entries).flat())
+    // console.log('Node.from parts:', parts.map((p) => p.entries).flat())
 
     return parts.map((entryList) => new NodeClass({ entryList, chunker, distance, ...opts }))
   }
@@ -498,7 +498,7 @@ class IPLDNode extends Node {
     // console.log('encode options:', opts.value, opts.value.branch?.[1], this)
 
     this.block = await multiformatEncode(opts)
-    console.log('this.encode', this.constructor.name, await this.block.cid, opts.value, opts.value.branch?.[1].toString())
+    // console.log('this.encode', this.constructor.name, await this.block.cid, opts.value, opts.value.branch?.[1].toString())
 
     return this.block
   }

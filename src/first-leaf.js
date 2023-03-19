@@ -1,7 +1,6 @@
 import { Node } from './base.js'
 
 export async function newInsertsBulker (that, inserts, nodeOptions, distance, root, results) {
-  // const callID = 'cx.' + Math.random().toString(36).substring(2, 15)
   const opts = nodeOptions.opts
   console.log('crate new leaves', inserts, await root.address)
   const newLeaves = await createNewLeaves(that, inserts, opts)
@@ -32,8 +31,6 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
 
   const newBranchEntries = [firstRootEntry, ...branchEntries]
 
-  // console.log('newBranchEntries:', await Promise.all(newBranchEntries.map(async (m) => await m.address)))
-
   const newBranches = await Node.from({
     ...nodeOptions,
     entries: newBranchEntries,
@@ -44,15 +41,7 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
   })
 
   const newNodes = [...newLeaves, ...newBranches, root]
-
-  // for (const node of newNodes) {
-  //   console.log('THAT:', node.key, await node.address, await node.block.cid)
-  // }
-  // console.log('THAT', await Promise.all(newNodes.map(async (m) => typeof (await m.block))))
-
   const newBlocks = await Promise.all(newNodes.map(async (m) => await m.block))
-  console.log('newBlocks:', newBlocks.length, newBlocks.map((m) => typeof m))
-  console.log('results.blocks:', results.blocks.length, results.blocks.map((m) => m.cid))
 
   results.root = newBranches[0]
   results.blocks = [...results.blocks, ...newBlocks]
