@@ -13,13 +13,16 @@ const cache = nocache
 const storage = () => {
   const blocks = {}
   const put = (block) => {
-    console.log('Put CID:', block.cid.toString())
+    // console.log('Put CID:', block.cid.toString())
     blocks[block.cid.toString()] = block
   }
   const get = async (cid) => {
-    console.log('Get CID:', cid.toString())
+    // console.log('Get CID:', cid.toString())
     const block = blocks[cid.toString()]
-    if (!block) throw new Error('Not found')
+    if (!block) {
+      console.log('missing CID', cid.toString())
+      throw new Error('Not found')
+    }
     return block
   }
   return { get, put, blocks }
@@ -278,6 +281,46 @@ describe('map', () => {
         throw e
       })
   })
+  it('minimal failing test case', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const limit = 100
+    const errors = []
+
+    for (let rowCount = 90; rowCount < limit; rowCount++) {
+      const key = String.fromCharCode(rowCount)
+      const value = `${rowCount}-${key}`
+      const bulk = [{ key, value }]
+
+      const { blocks, root } = await mapRoot.bulk(bulk)
+      for (const block of blocks) {
+        await put(block)
+      }
+
+      mapRoot = root
+      try {
+        await mapRoot.get(key)
+      } catch (e) {
+        errors.push({ key, value, rowCount })
+      }
+    }
+
+    console.log('ok keys', limit - errors.length)
+    console.log('unhandled keys', errors.length)
+    console.log(
+      'unhandled keys',
+      errors.map(({ key }) => key)
+    )
+    same(errors.length, 0)
+  })
+
+
   it('basic numeric string key', async () => {
     const { get, put } = storage()
     let mapRoot
@@ -367,7 +410,7 @@ describe('map', () => {
       same(result, value)
     }
   })
-  it('inserts with custom chunker that triggers branch for uninitialized node', async () => {
+  it('inserts with uninitialized node', async () => {
     const { get, put } = storage()
     let root
 
@@ -375,32 +418,26 @@ describe('map', () => {
       await put(await node.block)
       root = node
     }
+    const keysToInsert = ['1', '2', '3']
+    const bulk = keysToInsert.map((key) => ({ key, value: parseInt(key) }))
 
-    // Custom chunker that inserts new entries with keys smaller than existing entries
-    const customChunker = async (entry, distance) => {
-      return compare(entry.key, 'a') < 0
-    }
-
-    const keysToInsert = ['-1', '-2', '-3']
-    const bulk = keysToInsert.map((key) => ({ key, value: -1 }))
-
-    const { blocks, root: updatedRoot } = await root.bulk(bulk, { ...opts, chunker: customChunker })
+    const { blocks, root: updatedRoot } = await root.bulk(bulk, { ...opts, chunker })
     await Promise.all(blocks.map((block) => put(block)))
     // console.log('updatedRoot', updatedRoot)
     // Verify the inserted keys and their values
     for (const key of keysToInsert) {
       const value = await updatedRoot.get(key)
-      same(value, -1)
+      same(value.result, parseInt(key))
     }
 
     // Get the existing keys after insertion and sort them
-    const { result: entries } = await updatedRoot[0].getEntries(['-3', 'zz'])
+    const { result: entries } = await updatedRoot.getAllEntries()
     const resultingKeys = entries.map(({ key }) => key)
 
     resultingKeys.sort(compare)
 
     // Verify the resulting keys are as expected after insertion, also sort the expected keys
-    const expectedKeys = ['a', 'b', 'cc', 'ff', 'h', 'z', '-1', '-2', '-3'].sort(compare)
+    const expectedKeys = ['a', 'b', 'cc', 'c', 'bb', 'd', 'ff', 'h', 'z', 'zz', '1', '2', '3'].sort(compare)
     same(resultingKeys, expectedKeys)
   })
   it('insert multiple entries within range causing chunker function to return true', async () => {
