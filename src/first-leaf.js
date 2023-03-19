@@ -10,6 +10,7 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
 
   const branchEntries = await Promise.all(
     newLeaves.map(async (node) => {
+      console.log('MapBranchEntry for LeafNode:', node.constructor.name, node.key, await node.address)
       const newBranchEntry = new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts)
       return newBranchEntry
     })
@@ -22,9 +23,18 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
     },
     opts
   )
+  // these should be sorted by compare function
+  const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => opts.compare(a, b))
 
-  const newBranchEntries = [firstRootEntry, ...branchEntries]
-
+  console.log(
+    'newBranchEntries:',
+    newBranchEntries.map((ent) => {
+      const { key, address, value } = ent
+      const out = { key, address, value }
+      out.cls = ent.constructor.name
+      return out
+    })
+  )
   const newBranches = await Node.from({
     ...nodeOptions,
     entries: newBranchEntries,
