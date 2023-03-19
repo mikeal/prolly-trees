@@ -117,15 +117,17 @@ async function sortBulk (bulk, opts) {
  * @param {Array} nodes - [{encode()}] - An array of nodes to process.
  * @param {Object} opts - {codec, hasher, getNode, compare, cache, sorted, ...} - An object containing options for processing the nodes.
  * @returns {Array} An array of BranchEntryClass instances.
-*/
+ */
 export async function processBranchEntries (that, results, nodes, opts) {
   // console.log('processBranchEntries', that.value, Object.keys(results), await nodes.map(async (n) => await n.address), Object.keys(opts))
-  const entries = await Promise.all(nodes.map(async (node) => {
-    const block = await node.encode()
-    results.blocks.push(block)
-    that.cache.set(node)
-    return new opts.BranchEntryClass(node, opts)
-  }))
+  const entries = await Promise.all(
+    nodes.map(async (node) => {
+      const block = await node.encode()
+      results.blocks.push(block)
+      that.cache.set(node)
+      return new opts.BranchEntryClass(node, opts)
+    })
+  )
 
   return entries
 }
@@ -200,10 +202,13 @@ class Node {
       return this.entryList.entries
     } else {
       const { entries } = this.entryList
-      const mapper = async (entry) => this.getNode(await entry.address).then((node) => node._getAllEntries(cids)).catch(async (err) => {
-        console.log('did not find', await entry.address)
-        throw err
-      })
+      const mapper = async (entry) =>
+        this.getNode(await entry.address)
+          .then((node) => node._getAllEntries(cids))
+          .catch(async (err) => {
+            console.log('did not find', await entry.address)
+            throw err
+          })
       return Promise.all(entries.map(mapper)).then((results) => results.flat())
     }
   }
@@ -351,6 +356,9 @@ class Node {
           prepend = null
           const NodeClass = distance === 0 ? LeafClass : BranchClass
           const _opts = { ...nodeOptions, entries, NodeClass, distance }
+          // this is the Node.from that gets the mix of MapLeafEntry and MapBranchEntry
+          // do we need to fix this handling, or make sure we write a tree that doesn't
+          // have this problem?
           const nodes = await Node.from(_opts)
           if (!nodes[nodes.length - 1].closed) {
             prepend = nodes.pop()
@@ -409,12 +417,7 @@ class Node {
     while (results.nodes.length > 1) {
       const newDistance = results.nodes[0].distance + 1
 
-      const branchEntries = await processBranchEntries(
-        this,
-        results,
-        results.nodes,
-        opts
-      )
+      const branchEntries = await processBranchEntries(this, results, results.nodes, opts)
 
       const newNodes = await Node.from({
         ...nodeOptions,
@@ -423,9 +426,11 @@ class Node {
         distance: newDistance
       })
 
-      const encodedBlocks = await Promise.all(newNodes.map(async (node) => {
-        return await node.encode()
-      }))
+      const encodedBlocks = await Promise.all(
+        newNodes.map(async (node) => {
+          return await node.encode()
+        })
+      )
 
       results.nodes = newNodes
       results.blocks.push(...encodedBlocks)
@@ -442,7 +447,15 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
-    // console.log('Node.from entries:', entries)
+    console.log(
+      'Node.from entries:',
+      entries.map((ent) => {
+        const { key, address, value } = ent
+        const out = { key, address, value }
+        out.cls = ent.constructor.name
+        return out
+      })
+    )
 
     const parts = []
     let chunk = []
@@ -450,9 +463,7 @@ class Node {
       chunk.push(entry)
       if (!entry.identity) {
         console.log('missing entry.identity', entry, chunker)
-        // throw new Error('missing entry.identity')
       }
-      // why does this have a side effect of creating a map branch and linking its address but not returning the block      if (await chunker(entry, distance)) {
       if (await chunker(entry, distance)) {
         parts.push(new EntryList({ entries: chunk, closed: true }))
         chunk = []
@@ -461,9 +472,6 @@ class Node {
     if (chunk.length) {
       parts.push(new EntryList({ entries: chunk, closed: false }))
     }
-
-    // console.log('Node.from parts:', parts.map((p) => p.entries).flat())
-
     return parts.map((entryList) => new NodeClass({ entryList, chunker, distance, ...opts }))
   }
 }

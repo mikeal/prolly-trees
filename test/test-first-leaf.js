@@ -297,6 +297,9 @@ describe('map', () => {
       const key = String.fromCharCode(rowCount)
       const value = `${rowCount}-${key}`
       const bulk = [{ key, value }]
+      if (rowCount === 91) {
+        console.log('writing', key, value)
+      }
 
       const { blocks, root } = await mapRoot.bulk(bulk)
       for (const block of blocks) {
@@ -315,7 +318,7 @@ describe('map', () => {
     console.log('unhandled keys', errors.length)
     console.log(
       'unhandled keys',
-      errors.map(({ key }) => key)
+      errors// .map(({ key }) => key)
     )
     same(errors.length, 0)
   })
@@ -339,7 +342,7 @@ describe('map', () => {
     for (let rowCount = 33; rowCount < limit; rowCount++) {
       const key = String.fromCharCode(rowCount)
       const value = `${rowCount}-${key}`
-      // console.log('writing', key, value)
+      console.log('writing', key, value)
       const bulk = [{ key, value }]
       if (rowCount === 96) {
         console.log('writing', key, value)
