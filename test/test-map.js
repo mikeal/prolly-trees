@@ -458,7 +458,7 @@ describe('map', () => {
         errors.push({ key: key1, value: value1 })
       })
 
-    // Second key, should fail in the original test
+    // Second key, did fail in the original test
     const key2 = 'a'
     const value2 = `32-${key2}`
     const bulk2 = [{ key: key2, value: value2 }]
@@ -483,6 +483,54 @@ describe('map', () => {
       errors.map(({ key }) => key)
     )
     same(errors.length, 0)
+  })
+
+  it('basic numeric string key with specific keys and no loops inline', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    const list = createList([
+      ['b', 1],
+      ['bb', 2],
+      ['c', 1],
+      ['cc', 2]
+    ])
+
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    // Test getting a key that exists
+    const { result } = await mapRoot.get('c')
+    same(result, 1)
+
+    // Test getting a key that does not exist
+    await mapRoot.get('a')
+      .then(() => {
+        throw new Error('Key should not exist')
+      })
+      .catch((e) => {
+        same(e.message, 'Not found')
+      })
+
+    // Test bulk insert with a key that does not exist
+    const key2 = 'a'
+    const value2 = `32-${key2}`
+    const bulk2 = [{ key: key2, value: value2 }]
+    const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulk2)
+    for (const block of blocks2) {
+      await put(block)
+    }
+    mapRoot = root2
+
+    await mapRoot.get(key2)
+      .then((val) => {
+        same(val, value2)
+      })
+      .catch((e) => {
+        same(e.message, 'Should be found')
+      })
   })
 
   it('basic numeric string key', async () => {

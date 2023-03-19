@@ -1,4 +1,4 @@
-import { Node, processBranchEntries } from './base.js'
+import { Node } from './base.js'
 
 export async function newInsertsBulker (that, inserts, nodeOptions, distance, encode, root, results) {
   console.log(
@@ -12,71 +12,36 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, en
     Object.keys(results)
   )
   const opts = nodeOptions.opts
-  const chunker = nodeOptions.chunker
-  // this returns chunked LeafEntryClass entries
+  // const chunker = nodeOptions.chunker
   const newLeaves = await createNewLeaves(that, inserts, opts)
-  // console.log('New Entries addresses:', await Promise.all(newLeaves.map(async (node) => JSON.stringify(await node.address))))
-
-  // new entries are LeafClass
-
   if (newLeaves.length === 0) {
     throw new Error('Failed to insert entries')
   }
-
   const mapper = async (node) => new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts)
   const entries = await Promise.all(newLeaves.map(mapper))
-  const branches = await Node.from({ entries, chunker, NodeClass: opts.BranchClass, distance, opts })
-
-  // create new leafs and branch nodes for the new entries
-  // const { newNodes, newBranchNodes } = await createNewBranchNodes(
-  //   that,
-  //   [newLeaves],
-  //   nodeOptions,
-  //   opts.LeafEntryClass,
-  //   distance,
-  //   results
-  // )
-  // console.log(
-  //   'New Nodes:',
-  //   newNodes.map((node) => JSON.stringify(node?.entryList ? node?.entryList.entries : node))
-  // )
-  // console.log(
-  //   'New Branch Nodes:',
-  //   branches.map((node) => JSON.stringify(node.entryList.entries))
-  // )
-
+  // const branches = await Node.from({ entries, chunker, NodeClass: opts.BranchClass, distance, opts })
   const newLeafBlocks = await Promise.all(
     newLeaves.map(async (node) => {
       return await encodeNodeWithoutCircularReference(that, node, encode)
     })
   )
-
   // create the content addressable blocks for the new nodes
-  const newBranchBlocks = await Promise.all(
-    // do we also need to do this for newNodes, the leaf nodes?
-    branches.map(async (node) => {
-      return await encodeNodeWithoutCircularReference(that, node, encode)
-    })
-  )
-  // find the leftmost leaf and merge to the new root -- we should look inside this one
-  const newRoots = await createNewRoot(that, branches, root, newLeaves, opts, nodeOptions, distance)
-  // console.log(
-  //   'New Roots:',
-  //   newRoots.map((node) => JSON.stringify(node.entryList.entries))
+  // const newBranchBlocks = await Promise.all(
+  //   // do we also need to do this for newNodes, the leaf nodes?
+  //   branches.map(async (node) => {
+  //     return await encodeNodeWithoutCircularReference(that, node, encode)
+  //   })
   // )
-
-  // encode the new root blocks, why not use encodeNodeWithoutCircularReference?
+  // find the leftmost leaf and merge to the new root -- we should look inside this one
+  const newRoots = await createNewRoot(that, entries, root, newLeaves, opts, nodeOptions, distance)
   const rootBlocks = await Promise.all(newRoots.map(async (node) => await node.encode()))
   const encodedRootBlocks = await Promise.all(
     rootBlocks.map(async (block) => {
       return await encodeNodeWithoutCircularReference(that, block, encode)
     })
   )
-  // console.log('Results before updating:', JSON.stringify(results))
-  // update the results object, is this the correct new root?
-  // it should match the return values for the non-leftmost insert case
   results.root = newRoots[0]
-  results.blocks = [...results.blocks, ...newBranchBlocks, ...newLeafBlocks, ...encodedRootBlocks]
+  results.blocks = [...results.blocks, ...newLeafBlocks, ...encodedRootBlocks]
   results.nodes = newLeaves.concat(newRoots) // what about branches
 }
 
@@ -92,11 +57,11 @@ async function createNewLeaves (that, inserts, opts) {
   for (const insert of inserts) {
     const index = entries.findIndex((entry) => that.compare(entry.key, insert.key) > 0)
     const entry = new opts.LeafEntryClass(insert, opts)
-    console.log(
-      'LeafEntryClass createNewLeaves',
-      entry.constructor.name,
-      JSON.stringify([entry.key, entry.address, entry.codec, entry.hasher])
-    )
+    // console.log(
+    //   'LeafEntryClass createNewLeaves',
+    //   entry.constructor.name,
+    //   JSON.stringify([entry.key, entry.address, entry.codec, entry.hasher])
+    // )
     // these arent supposed to have addresses
     if (index >= 0) {
       entries.splice(index, 0, entry)
@@ -104,7 +69,7 @@ async function createNewLeaves (that, inserts, opts) {
       entries.push(entry)
     }
   }
-  console.log('entries:', entries)
+  // console.log('entries:', entries)
   return await Node.from({
     entries,
     chunker: that.chunker,
@@ -114,83 +79,35 @@ async function createNewLeaves (that, inserts, opts) {
   })
 }
 
-async function createNewBranchNodes (that, newLeaves, nodeOptions, LeafEntryClass, distance, results) {
-  const newNodes = await createNewNodes(that, newLeaves, nodeOptions, LeafEntryClass)
-
-  const newBranchEntries = await processBranchEntries(that, results, newNodes, nodeOptions.opts)
-
-  const newBranchNodes = await Node.from({
-    ...nodeOptions,
-    entries: newBranchEntries,
-    chunker: that.chunker,
-    NodeClass: nodeOptions.opts.BranchClass,
-    distance: distance + 1
-  })
-  console.log(
-    'Created New Nodes:',
-    newNodes.map((node) => JSON.stringify(node?.entryList ? node?.entryList.entries : node))
-  )
-  console.log(
-    'Created New Branch Nodes:',
-    newBranchNodes.map((node) => JSON.stringify(node.entryList.entries))
-  )
-  // both of these are arrays of Node.from results
-  return { newNodes, newBranchNodes }
-}
-
 async function encodeNodeWithoutCircularReference (that, node, encode) {
   const { codec, hasher } = that
-  // console.log(
-  //   'encodeNodeWithoutCircularReference',
-  //   node.constructor.name,
-  //   JSON.stringify(node.entryList ? node.entryList.entries : node),
-  //   codec,
-  //   encode
-  // )
   const value = await codec.encode(node.value)
   const encodeOpts = { codec, hasher, value }
 
-  // console.log('Value to encode:', JSON.stringify(value))
   const result = await encode(encodeOpts)
-  // console.log('Encoded result:', JSON.stringify(result))
   return result
 }
 
-async function createNewRoot (that, newBranchNodes, root, newNodes, opts, nodeOptions, distance) {
-  // console.log('Creating New Root:')
-  // // console.log('Opts:', opts)
-  // console.log(
-  //   'New Branch Nodes:',
-  //   newBranchNodes.map((node) => JSON.stringify(node.entryList.entries))
-  // )
-  // console.log('Root:', JSON.stringify(root.entryList.entries))
-  // console.log(
-  //   'New Nodes:',
-  //   newNodes.map((node) => JSON.stringify(node?.entryList ? node?.entryList.entries : node))
-  // )
-
+async function createNewRoot (that, branchEntries, root, newLeaves, opts, nodeOptions, distance) {
   // find leftmost entry in root
-  // console.log('opts.BranchEntryClass', JSON.stringify([opts.codec, opts.hasher]))
   const firstRootEntry = new opts.BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
 
   const leafEntries = await Promise.all(
-    newNodes.map(async (node) => {
-      // console.log('node.entryList', JSON.stringify(node))
-      const key = node.entryList.entries[0].key
+    newLeaves.map(async (node) => {
+      console.log('createNewRoot', node.cid, node.entryList?.startKey)
+      const key = node.entryList.startKey
       const address = await node.address
       return new opts.BranchEntryClass({ key, address }, opts)
     })
   )
 
-  // const branchEntries = newBranchNodes[0].entryList.entries
-  const branchEntries = newBranchNodes.map((node) => node.entryList.entries).flat()
-  // why are we only using the first branch node?
-
-  // console.log('firstRootEntry:', JSON.stringify(firstRootEntry))
-  // console.log('leafEntries:', JSON.stringify(leafEntries))
-  // console.log('branchEntries:', JSON.stringify(branchEntries))
+  // const branchEntries = branches// .map((node) => node.entryList.entries).flat()
 
   const newRootEntries = [firstRootEntry, ...leafEntries, ...branchEntries]
+
+  // const fre = await that.getNode(await firstRootEntry.address)
+
+  console.log('newRootEntries', firstRootEntry.value, leafEntries.map((e) => e.value), branchEntries.map((e) => e.entryList))
 
   const newRoots = await Node.from({
     ...nodeOptions,
@@ -200,29 +117,5 @@ async function createNewRoot (that, newBranchNodes, root, newNodes, opts, nodeOp
     distance: distance + 1
   })
 
-  // console.log(
-  //   'Created New Roots:',
-  //   newRoots.map((node) => JSON.stringify(node.entryList.entries))
-  // )
-
   return newRoots
-}
-
-async function createNewNodes (that, entriesArray, nodeOptions, NodeClass) {
-  const returned = await Promise.all(
-    entriesArray.map(async (entries) => {
-      if (!entries.length) console.log('createNewNodes entries', entries)
-      const addresses = await entries.map(async (entry) => await entry.address)
-      console.log('Node.from entries', entries, JSON.stringify(nodeOptions), await Promise.all(addresses))
-      return Node.from({
-        ...JSON.parse(JSON.stringify(nodeOptions)), // Create a shallow copy of nodeOptions
-        entries,
-        chunker: that.chunker,
-        NodeClass,
-        distance: 0
-      })
-    })
-  )
-  console.log('createNewNodes returned', returned)
-  return returned
 }
