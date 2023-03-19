@@ -477,15 +477,15 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
-    console.log(
-      'Node.from entries:',
-      entries.map((ent) => {
-        const { key, address, value } = ent
-        const out = { key, address, value }
-        out.cls = ent.constructor.name
-        return out
-      })
-    )
+    // console.log(
+    //   'Node.from entries:',
+    //   entries.map((ent) => {
+    //     const { key, address, value } = ent
+    //     const out = { key, address, value }
+    //     out.cls = ent.constructor.name
+    //     return out
+    //   })
+    // )
 
     const parts = []
     let chunk = []
@@ -533,7 +533,7 @@ class IPLDNode extends Node {
     const value = await this.encodeNode()
     const opts = { codec: this.codec, hasher: this.hasher, value }
 
-    console.log('encode options:', opts.value, opts.value.branch?.[1], this)
+    // console.log('encode options:', opts.value, opts.value.branch?.[1], this)
 
     this.block = await multiformatEncode(opts)
     // console.log('this.encode', this.constructor.name, await this.block.cid, opts.value, opts.value.branch?.[1].toString())
