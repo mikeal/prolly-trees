@@ -1,25 +1,18 @@
 import { Node } from './base.js'
 
 export async function newInsertsBulker (that, inserts, nodeOptions, distance, root, results) {
-  console.log(
-    'newInsertsBulker',
-    Object.keys(that),
-    inserts,
-    Object.keys(nodeOptions),
-    distance,
-    typeof encode,
-    root.entryList.entries.map(({ key }) => key),
-    Object.keys(results)
-  )
-  const callID = 'cx.' + Math.random().toString(36).substring(2, 15)
+  // const callID = 'cx.' + Math.random().toString(36).substring(2, 15)
   const opts = nodeOptions.opts
+  console.log('crate new leaves', inserts)
   const newLeaves = await createNewLeaves(that, inserts, opts)
+
+  const newLBlocks = await Promise.all(newLeaves.map(async (m) => await m.block))
+
+  console.log('newLBlocks:', newLBlocks.length, newLBlocks.map((m) => m.cid))
 
   if (newLeaves.length === 0) {
     throw new Error('Failed to insert entries')
   }
-
-  console.log('newLeaves:', newLeaves[0].entryList.entries[0].value)
 
   const branchEntries = await Promise.all(
     newLeaves.map(async (node) => new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts))
@@ -35,7 +28,7 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
 
   const newRootEntries = [firstRootEntry, ...branchEntries]
 
-  console.log('newRootEntries:', await Promise.all(newRootEntries.map(async (m) => await m.address)))
+  // console.log('newRootEntries:', await Promise.all(newRootEntries.map(async (m) => await m.address)))
 
   const newBranches = await Node.from({
     ...nodeOptions,
@@ -48,17 +41,13 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
 
   const newNodes = [...newLeaves, ...newBranches]
 
-  console.log('newBlocks:', callID, await Promise.all(newNodes.map(async (m) => await m.address)))
-
-  // const encodedBlocks = await encodeBlocks(callID, that, newBlocks)
-
-  // console.log('encodedBlocks:', await Promise.all(encodedBlocks.map(async (m) => await m.cid)))
-
   const newBlocks = await Promise.all(newNodes.map(async (m) => await m.block))
+  console.log('newBlocks:', newBlocks.length, newBlocks.map((m) => m.cid))
+  console.log('results.blocks:', results.blocks.length, results.blocks.map((m) => m.cid))
 
   results.root = newBranches[0]
   results.blocks = [...results.blocks, ...newBlocks]
-  results.nodes = newLeaves.concat(newBranches)
+  results.nodes = newNodes
 }
 
 /**

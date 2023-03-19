@@ -442,7 +442,7 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
-    // console.log('Node.from entries:', entries.length)
+    console.log('Node.from entries:', entries)
 
     const parts = []
     let chunk = []
@@ -452,6 +452,7 @@ class Node {
         console.log('missing entry.identity', entry, chunker)
         // throw new Error('missing entry.identity')
       }
+      // why does this have a side effect of creating a map branch and linking its address but not returning the block      if (await chunker(entry, distance)) {
       if (await chunker(entry, distance)) {
         parts.push(new EntryList({ entries: chunk, closed: true }))
         chunk = []
@@ -461,7 +462,7 @@ class Node {
       parts.push(new EntryList({ entries: chunk, closed: false }))
     }
 
-    // console.log('Node.from parts:', parts.length)
+    console.log('Node.from parts:', parts.map((p) => p.entries).flat())
 
     return parts.map((entryList) => new NodeClass({ entryList, chunker, distance, ...opts }))
   }
@@ -494,7 +495,7 @@ class IPLDNode extends Node {
     const value = await this.encodeNode()
     const opts = { codec: this.codec, hasher: this.hasher, value }
 
-    console.log('encode options:', opts.value)
+    console.log('encode options:', opts.value, opts.value.branch?.[1], this)
 
     this.block = await multiformatEncode(opts)
     console.log('this.encode done', await this.block.cid)
