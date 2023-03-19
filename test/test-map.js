@@ -255,6 +255,7 @@ describe('map', () => {
       same(value, true)
       await Promise.all(blocks.map((block) => put(block)))
       const { result } = await root.getAllEntries()
+      console.log('etsdfdsamap', result.map(({ key, value, address }) => ({ key, value, address })))
       verify(result)
       i++
     }
