@@ -2,12 +2,7 @@ import { Node } from './base.js'
 
 export async function newInsertsBulker (that, inserts, nodeOptions, distance, root, results) {
   const opts = nodeOptions.opts
-  console.log('crate new leaves', inserts, await root.address)
   const newLeaves = await createNewLeaves(that, inserts, opts)
-
-  const newLBlocks = await Promise.all(newLeaves.map(async (m) => await m.block))
-
-  console.log('newLBlocks:', newLBlocks.length, newLBlocks.map((m) => m.cid))
 
   if (newLeaves.length === 0) {
     throw new Error('Failed to insert entries')
@@ -15,7 +10,6 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
 
   const branchEntries = await Promise.all(
     newLeaves.map(async (node) => {
-      console.log('MapBranchEntry for LeafNode:', node.key, await node.address)
       const newBranchEntry = new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts)
       return newBranchEntry
     })
@@ -56,16 +50,9 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
  * @returns {Promise<Array>} An array of nodes created from the leaf entries.
  **/
 async function createNewLeaves (that, inserts, opts) {
-  const entries = []
-  for (const insert of inserts) {
-    const index = entries.findIndex((entry) => that.compare(entry.key, insert.key) > 0)
-    const entry = new opts.LeafEntryClass(insert, opts)
-    if (index >= 0) {
-      entries.splice(index, 0, entry)
-    } else {
-      entries.push(entry)
-    }
-  }
+  const entries = inserts
+    .map((insert) => new opts.LeafEntryClass(insert, opts))
+    .sort((a, b) => that.compare(a.key, b.key))
 
   return await Node.from({
     entries,
