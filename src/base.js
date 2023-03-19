@@ -496,10 +496,6 @@ class IPLDNode extends Node {
 
     console.log('encode options:', opts.value)
 
-    if (!opts.codec || !opts.hasher) {
-      console.trace('Missing codec or hasher')
-    }
-
     this.block = await multiformatEncode(opts)
     console.log('this.encode done', await this.block.cid)
 

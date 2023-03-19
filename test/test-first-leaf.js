@@ -16,7 +16,7 @@ const cache = nocache
 const storage = () => {
   const blocks = {}
   const put = (block) => {
-    console.log('Storing block with CID:', block.cid.toString())
+    console.log('Storing block with CID:', block?.cid?.toString())
 
     blocks[block.cid.toString()] = block
   }
@@ -280,7 +280,7 @@ describe('map', () => {
     const bulk2 = [{ key: key2, value: value2 }]
     const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulk2)
     for (const block of blocks2) {
-      console.log('putting', block.value, block?.cid.toString())
+      console.log('putting', block, block.value, block?.cid?.toString())
       await put(block)
     }
 
