@@ -13,7 +13,6 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
   )
   const callID = 'cx.' + Math.random().toString(36).substring(2, 15)
   const opts = nodeOptions.opts
-  const { codec, hasher } = opts
   const newLeaves = await createNewLeaves(that, inserts, opts)
 
   if (newLeaves.length === 0) {
@@ -51,28 +50,8 @@ export async function newInsertsBulker (that, inserts, nodeOptions, distance, ro
 
   console.log('newBlocks:', callID, await Promise.all(newBlocks.map(async (m) => await m.address)))
 
-  const encodedBlocks = await Promise.all(
-    newBlocks.map(async (block) => {
-      // console.log('encodedBlocks', await block.address)
-      const ad = await block.address
-      console.log('Original block value:', callID, JSON.stringify((await block.block).value))
+  const encodedBlocks = await encodeBlocks(callID, that, newBlocks, opts)
 
-      const enBlock = await encodeNodeWithoutCircularReference({
-        codec,
-        hasher,
-        encode: async () => {
-          const ecVal = (await block.block).value
-          console.log('encode input:', callID, JSON.stringify(ecVal))
-          const encd = await that.encode({ ...opts, value: ecVal })
-          console.log('did-encode output:', callID, encd.value)
-          return encd
-        }
-      }, await block)
-      console.log('did-encodedBlocks', callID, ad, await enBlock.cid)
-      console.log('enBlock value', callID, await enBlock.value)
-      return enBlock
-    })
-  )
   // console.log('encodedBlocks:', await Promise.all(encodedBlocks.map(async (m) => await m.cid)))
 
   results.root = newBranches[0]
@@ -115,8 +94,42 @@ export async function encodeNodeWithoutCircularReference (that, node) {
   const value = await codec.encode(node.block.value)
   console.log('encoded value', value.length)
   const encodeOpts = { codec, hasher, value }
+
   console.log('myencode input:', (encodeOpts.value.toString()))
   const result = await that.encode(encodeOpts)
   console.log('did+encode', result.value, result.cid)
   return result
+}
+
+async function encodeBlocks (callID, that, blocks, opts) {
+  const { codec, hasher } = opts
+
+  const encodedBlocks = []
+  for await (const block of blocks) {
+    const ad = await block.address
+    console.log(`[${callID}] Original block value:`, JSON.stringify((await block.block).value))
+
+    const enBlock = await encodeNodeWithoutCircularReference({
+      codec,
+      hasher,
+      encode: makeEncode(callID, that, block, opts)
+    }, block)
+    console.log(`[${callID}] did-encodedBlocks:`, ad, await enBlock.cid)
+    console.log(`[${callID}] enBlock value:`, await enBlock.value)
+    // block.block = enBlock
+    encodedBlocks.push(enBlock)
+  }
+  return encodedBlocks
+}
+
+// Define the makeEncode function
+function makeEncode (callID, that, block, opts) {
+  return async () => {
+    const ecVal = (await block.block).value
+    const ecInp = { ...opts, value: ecVal }
+    console.log('encode input:', callID, JSON.stringify(ecInp.value))
+    const encd = await that.encode(ecInp)
+    console.log('did-encode output:', callID, encd.value)
+    return encd
+  }
 }

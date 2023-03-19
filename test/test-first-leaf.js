@@ -208,15 +208,14 @@ describe('map', () => {
       })
   })
 
-  it('minimal reproduction of duplicate CID issue', async () => {
+  it('minimal nonreproduction of duplicate CID issue', async () => {
     const { get, put } = storage()
     let mapRoot
 
     const list = createList([
       ['b', 1],
-      ['c', 1],
-      ['d', 1],
-      ['e', 1]
+      ['c', 1]
+      // ['d', 1] // if this is removed, the test passes
     ])
 
     for await (const node of create({ get, compare, list, ...opts })) {
@@ -231,6 +230,53 @@ describe('map', () => {
     const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulk2)
     for (const block of blocks2) {
       console.log('putting', block.value, block.cid.toString())
+      await put(block)
+    }
+
+    await put(root2.block)
+    const address = await root2.address
+    const gotRoot = await get(address)
+    console.log('root2', root2.entryList.entries.length, root2.entryList.startKey, gotRoot.value, address)
+    mapRoot = root2
+    console.log('Root CID before getAllEntries:', (await mapRoot.address).toString())
+
+    const everything1 = await mapRoot.getAllEntries()
+    console.log(
+      'everything1',
+      everything1.cids,
+      everything1.result.map(({ key, value }) => ({ key, value }))
+    )
+    await mapRoot
+      .get(key2)
+      .then((val) => {
+        same(val.result, value2)
+      })
+      .catch((e) => {
+        throw e
+      })
+  })
+  it('minimal reproduction of duplicate CID issue', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    const list = createList([
+      ['b', 1],
+      ['c', 1],
+      ['d', 1] // if this is removed, the test passes
+    ])
+
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    // Test bulk insert with a key that does not exist
+    const key2 = 'a'
+    const value2 = `32-${key2}`
+    const bulk2 = [{ key: key2, value: value2 }]
+    const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulk2)
+    for (const block of blocks2) {
+      console.log('putting', block.value, block?.cid.toString())
       await put(block)
     }
 
