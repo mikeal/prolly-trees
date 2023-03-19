@@ -1,5 +1,5 @@
 import { encode as multiformatEncode } from 'multiformats/block'
-import { encodeNodeWithoutCircularReference } from '../src/first-leaf.js'
+import { encodeBlocks } from '../src/first-leaf.js'
 
 /* globals describe, it */
 import { deepStrictEqual as same } from 'assert'
@@ -64,6 +64,10 @@ async function mfEncode () {
   console.log('this.encode done', await this.block.cid)
 
   return this.block
+}
+
+async function encodeNodeWithoutCircularReference (that, node) {
+  return (await encodeBlocks('testCallId', that, [node]))[0]
 }
 
 describe('map', () => {
