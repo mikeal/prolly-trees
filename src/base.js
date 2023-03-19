@@ -533,7 +533,7 @@ class IPLDNode extends Node {
     const value = await this.encodeNode()
     const opts = { codec: this.codec, hasher: this.hasher, value }
 
-    // console.log('encode options:', opts.value, opts.value.branch?.[1], this)
+    console.log('encode options:', opts.value, opts.value.branch?.[1], this)
 
     this.block = await multiformatEncode(opts)
     // console.log('this.encode', this.constructor.name, await this.block.cid, opts.value, opts.value.branch?.[1].toString())
