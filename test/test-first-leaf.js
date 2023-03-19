@@ -320,7 +320,6 @@ describe('map', () => {
     same(errors.length, 0)
   })
 
-
   it('basic numeric string key', async () => {
     const { get, put } = storage()
     let mapRoot
