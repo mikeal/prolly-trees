@@ -1,6 +1,5 @@
 import { encode as multiformatEncode } from 'multiformats/block'
 import { CIDCounter } from './utils.js'
-import { processLeftmostInserts } from './first-leaf.js'
 
 class Entry {
   constructor ({ key, address }, opts = {}) {
@@ -108,30 +107,6 @@ async function sortBulk (bulk, opts) {
   return bulk.sort(({ key: a }, { key: b }) => opts.compare(a, b))
 }
 
-/**
- * Processes an array of nodes by calling processBranch for each node,
- * and returns an array of BranchEntryClass instances.
- *
- * @param {*} that - {codec, hasher, getNode, compare, cache, chunker} - The value of the `this` keyword as passed from bulk to processBranch.
- * @param {Object} results - {root, nodes: [{encode()}], blocks: [...], getAllEntries(): Promise, bulk(): Promise, previous: Array<{key, value}>} - An object containing the results of processing the nodes, along with the results of the entire bulk operation.
- * @param {Array} nodes - [{encode()}] - An array of nodes to process.
- * @param {Object} opts - {codec, hasher, getNode, compare, cache, sorted, ...} - An object containing options for processing the nodes.
- * @returns {Array} An array of BranchEntryClass instances.
- */
-export async function processBranchEntries (that, results, nodes, opts) {
-  // console.log('processBranchEntries', that.value, Object.keys(results), await nodes.map(async (n) => await n.address), Object.keys(opts))
-  const entries = await Promise.all(
-    nodes.map(async node => {
-      const block = await node.encode()
-      results.blocks.push(block)
-      that.cache.set(node)
-      return new opts.BranchEntryClass(node, opts)
-    })
-  )
-
-  return entries
-}
-
 async function processRoot (that, results, bulk, nodeOptions) {
   const root = results.root
   const distance = root.distance
@@ -148,7 +123,48 @@ async function processRoot (that, results, bulk, nodeOptions) {
   }
 
   if (inserts.length) {
-    await processLeftmostInserts(that, inserts, nodeOptions, distance, root, results)
+    const opts = nodeOptions.opts
+    const newLeaves = await await Node.from({
+      entries: inserts
+        .map((insert) => new opts.LeafEntryClass(insert, opts))
+        .sort((a, b) => that.compare(a.key, b.key)),
+      chunker: that.chunker,
+      NodeClass: opts.LeafClass,
+      distance: 0,
+      opts
+    })
+
+    const branchEntries = await Promise.all(
+      newLeaves.map(async (node) => {
+        const newBranchEntry = new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts)
+        return newBranchEntry
+      })
+    )
+
+    const firstRootEntry = new opts.BranchEntryClass(
+      {
+        key: root.entryList.startKey,
+        address: await root.address
+      },
+      opts
+    )
+    const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => opts.compare(a, b))
+
+    const newBranches = await Node.from({
+      ...nodeOptions,
+      entries: newBranchEntries,
+      chunker: that.chunker,
+      NodeClass: opts.BranchClass,
+      distance: distance + 1,
+      opts
+    })
+
+    const newNodes = [...newLeaves, ...newBranches, root]
+    const newBlocks = await Promise.all(newNodes.map(async (m) => await m.block))
+
+    results.root = newBranches[0]
+    results.blocks = [...results.blocks, ...newBlocks]
+    results.nodes = newNodes
   }
 }
 
@@ -386,10 +402,7 @@ class Node {
   }
 
   async bulk (bulk, opts = {}, isRoot = true) {
-    const {
-      BranchClass
-      //  BranchEntryClass, LeafClass, LeafEntryClass
-    } = opts
+    const { BranchClass } = opts
     opts = {
       codec: this.codec,
       hasher: this.hasher,
@@ -411,7 +424,14 @@ class Node {
     while (results.nodes.length > 1) {
       const newDistance = results.nodes[0].distance + 1
 
-      const branchEntries = await processBranchEntries(this, results, results.nodes, opts)
+      const branchEntries = await Promise.all(
+        results.nodes.map(async node => {
+          const block = await node.encode()
+          results.blocks.push(block)
+          this.cache.set(node)
+          return new opts.BranchEntryClass(node, opts)
+        })
+      )
 
       const newNodes = await Node.from({
         ...nodeOptions,
