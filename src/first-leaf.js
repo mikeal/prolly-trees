@@ -1,6 +1,6 @@
 import { Node } from './base.js'
 
-export async function newInsertsBulker (that, inserts, nodeOptions, distance, root, results) {
+export async function processNewInserts (that, inserts, nodeOptions, distance, root, results) {
   const opts = nodeOptions.opts
   const newLeaves = await createNewLeaves(that, inserts, opts)
 

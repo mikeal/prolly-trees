@@ -1,6 +1,6 @@
 import { encode as multiformatEncode } from 'multiformats/block'
 import { CIDCounter } from './utils.js'
-import { newInsertsBulker } from './first-leaf.js'
+import { processNewInserts } from './first-leaf.js'
 
 class Entry {
   constructor ({ key, address }, opts = {}) {
@@ -148,7 +148,7 @@ async function processRoot (that, results, bulk, nodeOptions) {
   }
 
   if (inserts.length) {
-    await newInsertsBulker(that, inserts, nodeOptions, distance, root, results)
+    await processNewInserts(that, inserts, nodeOptions, distance, root, results)
   }
 }
 
