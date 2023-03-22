@@ -12,12 +12,12 @@ const cache = nocache
 const storage = () => {
   const blocks = {}
   const put = (block) => {
-    console.log('Storing block with CID:', block.cid.toString())
+    // console.log('Storing block with CID:', block.cid.toString())
 
     blocks[block.cid.toString()] = block
   }
   const get = async (cid) => {
-    console.log('Retrieving block with CID:', cid.toString())
+    // console.log('Retrieving block with CID:', cid.toString())
 
     const block = blocks[cid.toString()]
     if (!block) throw new Error('Not found')
@@ -255,7 +255,6 @@ describe('map', () => {
       same(value, true)
       await Promise.all(blocks.map((block) => put(block)))
       const { result } = await root.getAllEntries()
-      console.log('etsdfdsamap', result.map(({ key, value, address }) => ({ key, value, address })))
       verify(result)
       i++
     }

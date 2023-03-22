@@ -357,38 +357,41 @@ class Node {
           // this is the Node.from that gets the mix of MapLeafEntry and MapBranchEntry
           // do we need to fix this handling, or make sure we write a tree that doesn't
           // have this problem?
-
           // gather any MapLeafEntry and make a LeafNode and then wrap in a BranchEntry,
-          const leafEntries = []
-          const branchEntries = []
-          for (let i = 0; i < entries.length; i++) {
-            if (!entries[i].address) {
-              leafEntries.push(entries[i])
-            } else {
-              branchEntries.push(entries[i])
-            }
-          }
-          console.log('leafEntries', leafEntries.length, 'branchEntries', branchEntries.length)
-          if (leafEntries.length) {
-            const _opts = { ...nodeOptions, entries: leafEntries, NodeClass: LeafClass, distance: 0 }
-            const leafNodes = await Node.from(_opts)
-            for (let i = 0; i < leafNodes.length; i++) {
-              const leafNode = leafNodes[i]
-              const branchEntry = new BranchEntryClass({ key: leafNode.key, address: await leafNode.address }, opts)
-              // console.log('made branch for leafz', branchEntry, leafNode)
-              branchEntries.push(branchEntry)
-            }
-          }
-          console.log('branchEntries', branchEntries)
+          // const leafEntries = []
+          // const branchEntries = []
+          // for (let i = 0; i < entries.length; i++) {
+          //   if (!entries[i].address) {
+          //     leafEntries.push(entries[i])
+          //   } else {
+          //     branchEntries.push(entries[i])
+          //   }
+          // }
+          // console.log('leafEntries', leafEntries.length, 'branchEntries', branchEntries.length)
+          // if (leafEntries.length) {
+          //   const _opts = { ...nodeOptions, entries: leafEntries, NodeClass: LeafClass, distance: 0 }
+          //   const leafNodes = await Node.from(_opts)
+          //   for (let i = 0; i < leafNodes.length; i++) {
+          //     const leafNode = leafNodes[i]
+          //     const branchEntry = new BranchEntryClass({ key: leafNode.key, address: await leafNode.address }, opts)
+          //     // console.log('made branch for leafz', branchEntry, leafNode)
+          //     branchEntries.push(branchEntry)
+          //   }
+          // }
+          // console.log('branchEntries', branchEntries)
 
           const NodeClass = distance === 0 ? LeafClass : BranchClass
+          const optEntries = entries // branchEntries
+          // const optEntries = branchEntries
+          //
           const _opts = {
             ...nodeOptions,
-            entries: branchEntries.sort(({ key: a }, { key: b }) =>
+            entries: optEntries.sort(({ key: a }, { key: b }) =>
               opts.compare(a, b)),
             NodeClass,
             distance
           }
+          //
           const nodes = await Node.from(_opts)
           if (!nodes[nodes.length - 1].closed) {
             prepend = nodes.pop()
@@ -491,9 +494,9 @@ class Node {
     let chunk = []
     for (const entry of entries) {
       chunk.push(entry)
-      if (!entry.identity) {
-        console.log('missing entry.identity', entry, chunker)
-      }
+      // if (!entry.identity) {
+      //   console.log('missing entry.identity', entry, chunker)
+      // }
       if (await chunker(entry, distance)) {
         parts.push(new EntryList({ entries: chunk, closed: true }))
         chunk = []
