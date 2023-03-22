@@ -5,6 +5,7 @@ import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { nocache, global as globalCache } from '../src/cache.js'
 import { bf, simpleCompare as compare } from '../src/utils.js'
+
 const chunker = bf(3)
 
 const cache = nocache
@@ -12,13 +13,9 @@ const cache = nocache
 const storage = () => {
   const blocks = {}
   const put = (block) => {
-    // console.log('Storing block with CID:', block.cid.toString())
-
     blocks[block.cid.toString()] = block
   }
   const get = async (cid) => {
-    // console.log('Retrieving block with CID:', cid.toString())
-
     const block = blocks[cid.toString()]
     if (!block) throw new Error('Not found')
     return block
@@ -35,7 +32,7 @@ const verify = (check, node) => {
   same(check.closed, node.closed)
 }
 
-const createList = (entries) => entries.map(([key, value]) => ({ key, value }))
+const createList = entries => entries.map(([key, value]) => ({ key, value }))
 
 const list = createList([
   ['a', 1],
@@ -104,7 +101,7 @@ describe('map', () => {
       root = node
     }
     const verify = (entries, start, end) => {
-      const keys = entries.map((entry) => entry.key)
+      const keys = entries.map(entry => entry.key)
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
@@ -126,7 +123,7 @@ describe('map', () => {
       root = node
     }
     const verify = (entries, start, end) => {
-      const keys = entries.map((entry) => entry.key)
+      const keys = entries.map(entry => entry.key)
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
