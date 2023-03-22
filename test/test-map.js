@@ -133,7 +133,6 @@ describe('map', () => {
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
       await put(await node.block)
-      console.log('node', await node.block.cid)
       root = node
     }
 

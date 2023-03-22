@@ -321,13 +321,6 @@ describe('map first-leaf', () => {
         errors.push({ key, value, rowCount })
       }
     }
-
-    console.log('ok keys', limit - errors.length)
-    console.log('unhandled keys', errors.length)
-    console.log(
-      'unhandled keys',
-      errors// .map(({ key }) => key)
-    )
     same(errors.length, 0)
   })
 
@@ -371,13 +364,6 @@ describe('map first-leaf', () => {
           errors.push({ key, value, rowCount })
         })
     }
-    console.log('ok keys', limit - errors.length)
-    console.log('unhandled keys', errors.length)
-    // anything with charcode less than 97, eg before lowercase a, will fail
-    console.log(
-      'unhandled keys',
-      errors.map(({ key, rowCount }) => key)
-    )
     same(errors.length, 0)
   })
   it('insert causes chunker to return true for non-empty bulk', async () => {
