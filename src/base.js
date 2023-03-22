@@ -309,7 +309,6 @@ class Node {
         if (deletes.has(skey)) {
           deletes.set(skey, i)
         } else {
-          // console.log('LeafEntryClass transaction', entry.key.toString(), JSON.stringify(changes[skey]))
           entries[i] = new LeafEntryClass(changes[skey], opts)
           delete changes[skey]
         }
@@ -354,39 +353,10 @@ class Node {
           if (entry.isEntry) entry = await this.getNode(await entry.address)
           const entries = prepend.entryList.entries.concat(entry.entryList.entries)
           prepend = null
-          // this is the Node.from that gets the mix of MapLeafEntry and MapBranchEntry
-          // do we need to fix this handling, or make sure we write a tree that doesn't
-          // have this problem?
-          // gather any MapLeafEntry and make a LeafNode and then wrap in a BranchEntry,
-          // const leafEntries = []
-          // const branchEntries = []
-          // for (let i = 0; i < entries.length; i++) {
-          //   if (!entries[i].address) {
-          //     leafEntries.push(entries[i])
-          //   } else {
-          //     branchEntries.push(entries[i])
-          //   }
-          // }
-          // console.log('leafEntries', leafEntries.length, 'branchEntries', branchEntries.length)
-          // if (leafEntries.length) {
-          //   const _opts = { ...nodeOptions, entries: leafEntries, NodeClass: LeafClass, distance: 0 }
-          //   const leafNodes = await Node.from(_opts)
-          //   for (let i = 0; i < leafNodes.length; i++) {
-          //     const leafNode = leafNodes[i]
-          //     const branchEntry = new BranchEntryClass({ key: leafNode.key, address: await leafNode.address }, opts)
-          //     // console.log('made branch for leafz', branchEntry, leafNode)
-          //     branchEntries.push(branchEntry)
-          //   }
-          // }
-          // console.log('branchEntries', branchEntries)
-
           const NodeClass = distance === 0 ? LeafClass : BranchClass
-          const optEntries = entries // branchEntries
-          // const optEntries = branchEntries
-          //
           const _opts = {
             ...nodeOptions,
-            entries: optEntries.sort(({ key: a }, { key: b }) =>
+            entries: entries.sort(({ key: a }, { key: b }) =>
               opts.compare(a, b)),
             NodeClass,
             distance
@@ -480,23 +450,10 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
-    // console.log(
-    //   'Node.from entries:',
-    //   entries.map((ent) => {
-    //     const { key, address, value } = ent
-    //     const out = { key, address, value }
-    //     out.cls = ent.constructor.name
-    //     return out
-    //   })
-    // )
-
     const parts = []
     let chunk = []
     for (const entry of entries) {
       chunk.push(entry)
-      // if (!entry.identity) {
-      //   console.log('missing entry.identity', entry, chunker)
-      // }
       if (await chunker(entry, distance)) {
         parts.push(new EntryList({ entries: chunk, closed: true }))
         chunk = []
@@ -511,7 +468,6 @@ class Node {
 
 class IPLDNode extends Node {
   constructor ({ codec, hasher, block, ...opts }) {
-    // console.log('IPLDNode opts:', JSON.stringify([codec, hasher])) // Add this line
     super(opts)
     this.codec = codec
     this.hasher = hasher
@@ -530,17 +486,10 @@ class IPLDNode extends Node {
   }
 
   async encode () {
-    // console.log('MapLeaf-encode', this.entryList?.startKey, this.block?.value)
     if (this.block) return this.block
-    // console.log('MapLeaf-encode', await this.address)
     const value = await this.encodeNode()
     const opts = { codec: this.codec, hasher: this.hasher, value }
-
-    // console.log('encode options:', opts.value, opts.value.branch?.[1], this)
-
     this.block = await multiformatEncode(opts)
-    // console.log('this.encode', this.constructor.name, await this.block.cid, opts.value, opts.value.branch?.[1].toString())
-
     return this.block
   }
 }
@@ -571,7 +520,6 @@ class IPLDLeaf extends IPLDNode {
 
 const create = async function * (obj) {
   let { LeafClass, LeafEntryClass, BranchClass, BranchEntryClass, list, chunker, compare, ...opts } = obj
-  // console.log('LeafEntryClass create', list)
   list = list.map((value) => new LeafEntryClass(value, opts))
   opts.compare = compare
   let nodes = await Node.from({ entries: list, chunker, NodeClass: LeafClass, distance: 0, opts })

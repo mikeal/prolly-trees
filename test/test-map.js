@@ -115,20 +115,34 @@ describe('map', () => {
     entries = await range('a', 'c')
     verify(entries, 0, 3)
   })
-  it('getAllEntries', async () => {
+  let getCount = 0
+  const createFaultyStorage = (faultCount) => {
     const { get, put } = storage()
+    const faultyGet = async (cid) => {
+      getCount++
+      if (getCount === faultCount) {
+        throw new Error('Faulty CID encountered')
+      }
+      return await get(cid)
+    }
+    return { get: faultyGet, put }
+  }
+  it('getAllEntries', async () => {
+    const { get, put } = createFaultyStorage(8)
+
     let root
     for await (const node of create({ get, compare, list, ...opts })) {
       await put(await node.block)
+      console.log('node', await node.block.cid)
       root = node
     }
-    const verify = (entries, start, end) => {
-      const keys = entries.map(entry => entry.key)
-      const comp = list.slice(start, end).map(({ key }) => key)
-      same(keys, comp)
+
+    try {
+      await root.getAllEntries()
+      throw new Error('getAllEntries should have thrown an error')
+    } catch (err) {
+      same(err.message, 'Faulty CID encountered', 'Unexpected error thrown')
     }
-    const { result: entries } = await root.getAllEntries()
-    verify(entries)
   })
   it('bulk insert 2', async () => {
     const { get, put } = storage()
@@ -168,6 +182,48 @@ describe('map', () => {
       same(await _get(key), value)
     }
   })
+  it('bulk insert unsorted', async () => {
+    const { get, put } = storage()
+    let last
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      last = node
+    }
+    const verify = (entries, start, end) => {
+      const keys = entries.map(entry => entry.key)
+      const comp = list.slice(start, end).map(({ key }) => key)
+      same(keys, comp)
+    }
+    const { result: entries } = await last.getAllEntries()
+    verify(entries)
+
+    // Unsorted bulk array
+    const bulk = [
+      { key: 'dd', value: 2 },
+      { key: 'd', value: -1 }
+    ].sort(() => Math.random() - 0.5)
+
+    const { blocks, root } = await last.bulk(bulk, { unsorted: null }) // Do not set the sorted option
+    await Promise.all(blocks.map(block => put(block)))
+    const _get = async (k) => (await root.get(k)).result
+    same(await _get('dd'), 2)
+    same(await _get('d'), -1)
+    const expected = [
+      ['a', 1],
+      ['b', 1],
+      ['bb', 2],
+      ['c', 1],
+      ['cc', 2],
+      ['ff', 2],
+      ['h', 1],
+      ['z', 1],
+      ['zz', 2]
+    ]
+    for (const [key, value] of expected) {
+      same(await _get(key), value)
+    }
+  })
+
   it('bulk insert 100 update 1*100', async () => {
     const { get, put } = storage()
     let last
