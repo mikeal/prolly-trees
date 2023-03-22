@@ -283,10 +283,6 @@ class Node {
       ...opts
     }
     const nodeOptions = { chunker: this.chunker, opts }
-    if (!opts.sorted) {
-      bulk = bulk.sort(({ key: a }, { key: b }) => opts.compare(a, b))
-      opts.sorted = true
-    }
     const results = this.entryList.findMany(bulk, opts.compare, true, this.isLeaf)
     let entries = []
     if (this.isLeaf) {
@@ -318,8 +314,6 @@ class Node {
         entries.splice(i - count++, 1)
       }
       const appends = Object.values(changes).map((obj) => {
-        // console.log('LeafEntryClass appends', obj.key.toString(), JSON.stringify(obj))
-
         return new LeafEntryClass(obj, opts)
       })
       // TODO: there's a faster version of this that only does one iteration

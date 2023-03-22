@@ -203,7 +203,7 @@ describe('map', () => {
       { key: 'd', value: -1 }
     ].sort(() => Math.random() - 0.5)
 
-    const { blocks, root } = await last.bulk(bulk, { unsorted: null }) // Do not set the sorted option
+    const { blocks, root } = await last.bulk(bulk, { sorted: false }) // Do not set the sorted option
     await Promise.all(blocks.map(block => put(block)))
     const _get = async (k) => (await root.get(k)).result
     same(await _get('dd'), 2)
