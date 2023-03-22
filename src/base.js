@@ -186,7 +186,8 @@ class Node {
       cids.add(node)
     }
     const result = node.entryList.find(key, this.compare)
-    if (result === null || result[1].key.toString() !== key.toString()) throw new Error('Not found')
+    if (result === null ||
+      result[1].key.toString() !== key.toString()) throw new Error('Not found')
     const [, entry] = result
     return entry
   }
@@ -225,7 +226,7 @@ class Node {
     let entries = []
     for (const [entry, keys] of [...results.values()].reverse()) {
       const p = this.getNode(await entry.address)
-      entries.push(p.then((node) => node._getEntries(keys.reverse(), true, cids)))
+      entries.push(p.then(node => node._getEntries(keys.reverse(), true, cids)))
     }
     entries = await Promise.all(entries)
     return entries.flat()
@@ -240,7 +241,7 @@ class Node {
     cids.add(this)
     const { entries } = this.entryList.findRange(start, end, this.compare)
     if (this.isLeaf) {
-      return entries.filter((entry) => {
+      return entries.filter(entry => {
         const s = this.compare(start, entry.key)
         const e = this.compare(end, entry.key)
         if (s <= 0 && e >= 0) return true
