@@ -56,7 +56,7 @@ class EntryList {
           if (comp > -1) {
             found.push(keys.pop())
           } else {
-            break // this is the only branch that hits if the new key sorts before the earliest key in the tree
+            break // the new key sorts before the leftmost key in the tree
           }
         } else {
           if (comp === 0) {

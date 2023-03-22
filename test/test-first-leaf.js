@@ -5,7 +5,6 @@ import * as codec from '@ipld/dag-cbor'
 import { sha256 as hasher } from 'multiformats/hashes/sha2'
 import { nocache } from '../src/cache.js'
 import { bf, simpleCompare as compare } from '../src/utils.js'
-// import { EntryList } from '../src/base.js'
 const chunker = bf(3)
 
 const cache = nocache
@@ -13,14 +12,11 @@ const cache = nocache
 const storage = () => {
   const blocks = {}
   const put = (block) => {
-    // console.log('Put CID:', block.cid.toString())
     blocks[block.cid.toString()] = block
   }
   const get = async (cid) => {
-    // console.log('Get CID:', cid.toString())
     const block = blocks[cid.toString()]
     if (!block) {
-      console.log('missing CID', cid.toString())
       throw new Error('Not found')
     }
     return block
@@ -147,11 +143,6 @@ describe('map first-leaf', () => {
       })
 
     const everything0 = await mapRoot.getAllEntries()
-    // console.log(
-    //   'everything0',
-    //   everything0.cids,
-    //   everything0.result.map(({ key, value }) => ({ key, value }))
-    // )
     same(everything0.result.length, 4)
     // Test bulk insert with a key that does not exist
     const key2 = 'a'
@@ -159,24 +150,16 @@ describe('map first-leaf', () => {
     const bulk2 = [{ key: key2, value: value2 }]
     const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulk2)
     for (const block of blocks2) {
-      // console.log('putting', block.value, block.cid.toString())
       await put(block)
     }
 
     await put(root2.block)
     const address = await root2.address
     const gotRoot = await get(address)
-    // console.log('root2', root2.entryList.entries.length, root2.entryList.startKey, gotRoot.value, address)
     mapRoot = root2
-    // console.log('Root CID before getAllEntries:', (await mapRoot.address).toString())
     same(gotRoot.value, root2.block.value)
     const everything1 = await mapRoot.getAllEntries()
     same(everything1.result.length, 1)
-    // console.log(
-    //   'everything1',
-    //   everything1.cids,
-    //   everything1.result.map(({ key, value }) => ({ key, value }))
-    // )
 
     await mapRoot
       .get(key2)
@@ -209,25 +192,17 @@ describe('map first-leaf', () => {
     const bulk2 = [{ key: key2, value: value2 }]
     const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulk2)
     for (const block of blocks2) {
-      // console.log('putting', block.value, block.cid.toString())
       await put(block)
     }
 
     await put(root2.block)
     const address = await root2.address
     const gotRoot = await get(address)
-    // console.log('root2', root2.entryList.entries.length, root2.entryList.startKey, gotRoot.value, address)
     same(gotRoot.value, root2.block.value)
     same(root2.entryList.entries.length, 2)
     mapRoot = root2
-    // console.log('Root CID before getAllEntries:', (await mapRoot.address).toString())
 
     const everything1 = await mapRoot.getAllEntries()
-    // console.log(
-    //   'everything1',
-    //   everything1.cids,
-    //   everything1.result.map(({ key, value }) => ({ key, value }))
-    // )
     same(everything1.result.length, 3)
     await mapRoot
       .get(key2)
@@ -259,25 +234,17 @@ describe('map first-leaf', () => {
     const bulk2 = [{ key: key2, value: value2 }]
     const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulk2)
     for (const block of blocks2) {
-      // console.log('putting', block, block.value, block?.cid?.toString())
       await put(block)
     }
 
     await put(root2.block)
     const address = await root2.address
     const gotRoot = await get(address)
-    // console.log('root2', root2.entryList.entries.length, root2.entryList.startKey, gotRoot.value, address)
     same(gotRoot.value, root2.block.value)
     same(root2.entryList.entries.length, 1)
     mapRoot = root2
-    // console.log('Root CID before getAllEntries:', (await mapRoot.address).toString())
 
     const everything1 = await mapRoot.getAllEntries()
-    // console.log(
-    //   'everything1',
-    //   everything1.cids,
-    //   everything1.result.map(({ key, value }) => ({ key, value }))
-    // )
 
     same(everything1.result.length, 1)
     await mapRoot
@@ -305,9 +272,6 @@ describe('map first-leaf', () => {
       const key = String.fromCharCode(rowCount)
       const value = `${rowCount}-${key}`
       const bulk = [{ key, value }]
-      // if (rowCount === 91) {
-      //   console.log('writing', key, value)
-      // }
 
       const { blocks, root } = await mapRoot.bulk(bulk)
       for (const block of blocks) {
@@ -327,9 +291,7 @@ describe('map first-leaf', () => {
   it('basic numeric string key', async () => {
     const { get, put } = storage()
     let mapRoot
-    // let leaf
     for await (const node of create({ get, compare, list, ...opts })) {
-      // if (node.isLeaf) leaf = node
       await put(await node.block)
       mapRoot = node
     }
@@ -343,13 +305,8 @@ describe('map first-leaf', () => {
     for (let rowCount = 33; rowCount < limit; rowCount++) {
       const key = String.fromCharCode(rowCount)
       const value = `${rowCount}-${key}`
-      // console.log('writing', key, value)
       const bulk = [{ key, value }]
-      // if (rowCount === 96) {
-      //   console.log('writing', key, value)
-      // }
       const { blocks, root } = await mapRoot.bulk(bulk)
-      // await Promise.all(blocks.map((block) => await put(block)))
       for (const bl of blocks) {
         await put(bl)
       }
@@ -357,9 +314,7 @@ describe('map first-leaf', () => {
       mapRoot = root
       await mapRoot
         .get(key)
-        .then(() => {
-          // console.log('got', key, value)
-        })
+        .then(() => {})
         .catch((e) => {
           errors.push({ key, value, rowCount })
         })
@@ -419,7 +374,6 @@ describe('map first-leaf', () => {
 
     const { blocks, root: updatedRoot } = await root.bulk(bulk, { ...opts, chunker })
     await Promise.all(blocks.map((block) => put(block)))
-    // console.log('updatedRoot', updatedRoot)
     // Verify the inserted keys and their values
     for (const key of keysToInsert) {
       const value = await updatedRoot.get(key)
