@@ -102,7 +102,7 @@ class EntryList {
   }
 }
 
-const stringKey = (key) => (typeof key === 'string' ? key : JSON.stringify(key))
+const stringKey = key => typeof key === 'string' ? key : JSON.stringify(key)
 
 async function sortBulk (bulk, opts) {
   return bulk.sort(({ key: a }, { key: b }) => opts.compare(a, b))
@@ -121,7 +121,7 @@ async function sortBulk (bulk, opts) {
 export async function processBranchEntries (that, results, nodes, opts) {
   // console.log('processBranchEntries', that.value, Object.keys(results), await nodes.map(async (n) => await n.address), Object.keys(opts))
   const entries = await Promise.all(
-    nodes.map(async (node) => {
+    nodes.map(async node => {
       const block = await node.encode()
       results.blocks.push(block)
       that.cache.set(node)
@@ -187,7 +187,7 @@ class Node {
     }
     const result = node.entryList.find(key, this.compare)
     if (result === null ||
-      result[1].key.toString() !== key.toString()) throw new Error('Not found')
+      (result[1].key.toString() !== key.toString())) throw new Error('Not found')
     const [, entry] = result
     return entry
   }
@@ -207,7 +207,7 @@ class Node {
         this.getNode(await entry.address)
           .then((node) => node._getAllEntries(cids))
           .catch(async err => { throw err })
-      return Promise.all(entries.map(mapper)).then((results) => results.flat())
+      return Promise.all(entries.map(mapper)).then(results => results.flat())
     }
   }
 
@@ -250,8 +250,8 @@ class Node {
     }
 
     if (!entries.length) return []
-    const thenRange = async (entry) =>
-      this.getNode(await entry.address).then((node) => {
+    const thenRange = async entry =>
+      this.getNode(await entry.address).then(node => {
         return node._getRangeEntries(start, end, cids)
       })
     const results = [thenRange(entries.shift())]
@@ -261,13 +261,13 @@ class Node {
 
     while (entries.length) {
       const thenAll = async (entry) =>
-        this.getNode(await entry.address).then(async (node) => {
+        this.getNode(await entry.address).then(async node => {
           return node._getAllEntries(cids)
         })
       results.push(thenAll(entries.shift()))
     }
     results.push(last)
-    return Promise.all(results).then((results) => results.flat())
+    return Promise.all(results).then(results => results.flat())
   }
 
   async transaction (bulk, opts = {}) {
@@ -311,7 +311,7 @@ class Node {
       for (const [, i] of deletes) {
         entries.splice(i - count++, 1)
       }
-      const appends = Object.values(changes).map((obj) => {
+      const appends = Object.values(changes).map(obj => {
         return new LeafEntryClass(obj, opts)
       })
       // TODO: there's a faster version of this that only does one iteration
@@ -323,8 +323,8 @@ class Node {
       let distance = 0
       for (const [i, [entry, keys]] of results) {
         const p = this.getNode(await entry.address)
-          .then((node) => node.transaction(keys.reverse(), { ...opts, sorted: true }))
-          .then((r) => ({ entry, keys, distance, ...r }))
+          .then(node => node.transaction(keys.reverse(), { ...opts, sorted: true }))
+          .then(r => ({ entry, keys, distance, ...r }))
         results.set(i, p)
       }
       entries = [...this.entryList.entries]
@@ -353,7 +353,6 @@ class Node {
             NodeClass,
             distance
           }
-          //
           const nodes = await Node.from(_opts)
           if (!nodes[nodes.length - 1].closed) {
             prepend = nodes.pop()
@@ -373,7 +372,7 @@ class Node {
         newEntries.push(prepend)
       }
       distance++
-      const toEntry = async (branch) => {
+      const toEntry = async branch => {
         if (branch.isEntry) return branch
         const block = await branch.encode()
         final.blocks.push(block)
@@ -422,7 +421,7 @@ class Node {
       })
 
       const encodedBlocks = await Promise.all(
-        newNodes.map(async (node) => {
+        newNodes.map(async node => {
           return await node.encode()
         })
       )
@@ -454,7 +453,7 @@ class Node {
     if (chunk.length) {
       parts.push(new EntryList({ entries: chunk, closed: false }))
     }
-    return parts.map((entryList) => new NodeClass({ entryList, chunker, distance, ...opts }))
+    return parts.map(entryList => new NodeClass({ entryList, chunker, distance, ...opts }))
   }
 }
 
@@ -465,7 +464,7 @@ class IPLDNode extends Node {
     this.hasher = hasher
     if (!block) {
       this.block = this.encode()
-      this.address = this.block.then((block) => block.cid)
+      this.address = this.block.then(block => block.cid)
     } else {
       this.block = block
       this.address = block.cid
@@ -489,7 +488,7 @@ class IPLDNode extends Node {
 class IPLDBranch extends IPLDNode {
   async encodeNode () {
     const { entries } = this.entryList
-    const mapper = async (entry) => [entry.key, await entry.address]
+    const mapper = async entry => [entry.key, await entry.address]
     const list = await Promise.all(entries.map(mapper))
     return { branch: [this.distance, list], closed: this.closed }
   }
@@ -501,7 +500,7 @@ class IPLDBranch extends IPLDNode {
 
 class IPLDLeaf extends IPLDNode {
   async encodeNode () {
-    const list = await Promise.all(this.entryList.entries.map(async (entry) => await entry.encodeNode()))
+    const list = await Promise.all(this.entryList.entries.map(async entry => await entry.encodeNode()))
     return { leaf: list, closed: this.closed }
   }
 
@@ -518,7 +517,7 @@ const create = async function * (obj) {
   yield * nodes
   let distance = 1
   while (nodes.length > 1) {
-    const mapper = async (node) => new BranchEntryClass({ key: node.key, address: await node.address }, opts)
+    const mapper = async node => new BranchEntryClass({ key: node.key, address: await node.address }, opts)
     const entries = await Promise.all(nodes.map(mapper))
     nodes = await Node.from({ entries, chunker, NodeClass: BranchClass, distance, opts })
     yield * nodes
