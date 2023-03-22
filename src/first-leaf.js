@@ -1,6 +1,17 @@
 import { Node } from './base.js'
 
-export async function processNewInserts (that, inserts, nodeOptions, distance, root, results) {
+/**
+ * Process new leftmost inserts and updates the results.
+ *
+ * @param {Object} that - The instance of the class that this function is called from.
+ * @param {Array} inserts - An array of new insert objects to be processed.
+ * @param {Object} nodeOptions - Options to be used when creating new nodes.
+ * @param {number} distance - The distance parameter used in processing the inserts.
+ * @param {Object} root - The root node of the data structure being updated.
+ * @param {Array} results - An array of result objects to be updated during the processing of new inserts.
+ * @returns {Promise<void>} A promise that resolves when the processing is complete.
+ */
+export async function processLeftmostInserts (that, inserts, nodeOptions, distance, root, results) {
   const opts = nodeOptions.opts
   const newLeaves = await createNewLeaves(that, inserts, opts)
 
