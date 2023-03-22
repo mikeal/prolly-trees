@@ -12,10 +12,10 @@ const cache = nocache
 
 const storage = () => {
   const blocks = {}
-  const put = (block) => {
+  const put = block => {
     blocks[block.cid.toString()] = block
   }
-  const get = async (cid) => {
+  const get = async cid => {
     const block = blocks[cid.toString()]
     if (!block) throw new Error('Not found')
     return block
@@ -138,7 +138,7 @@ describe('map', () => {
       last = node
     }
     const verify = (entries, start, end) => {
-      const keys = entries.map((entry) => entry.key)
+      const keys = entries.map(entry => entry.key)
       const comp = list.slice(start, end).map(({ key }) => key)
       same(keys, comp)
     }
@@ -149,7 +149,7 @@ describe('map', () => {
       { key: 'd', value: -1 }
     ]
     const { blocks, root } = await last.bulk(bulk)
-    await Promise.all(blocks.map((block) => put(block)))
+    await Promise.all(blocks.map(block => put(block)))
     const _get = async (k) => (await root.get(k)).result
     same(await _get('dd'), 2)
     same(await _get('d'), -1)
@@ -203,7 +203,7 @@ describe('map', () => {
     while (i < 100) {
       const bulk = [{ key: i.toString(), value: false }]
       const { blocks, root } = await base.bulk(bulk)
-      await Promise.all(blocks.map((block) => put(block)))
+      await Promise.all(blocks.map(block => put(block)))
       const { result } = await root.getAllEntries()
       verify(result)
       i++
@@ -250,7 +250,7 @@ describe('map', () => {
       const [{ key, value }] = previous
       same(key, i.toString())
       same(value, true)
-      await Promise.all(blocks.map((block) => put(block)))
+      await Promise.all(blocks.map(block => put(block)))
       const { result } = await root.getAllEntries()
       verify(result)
       i++
@@ -277,18 +277,12 @@ describe('map', () => {
     const back = [...expected]
     while (front.length) {
       const { result: entries } = await last.getRangeEntries(front[0], front[front.length - 1] + '999')
-      same(
-        entries.map(({ key }) => key),
-        front
-      )
+      same(entries.map(({ key }) => key), front)
       front.shift()
     }
     while (front.length) {
       const { result: entries } = await last.getRangeEntries(back[0], back[back.length - 1] + '.')
-      same(
-        entries.map(({ key }) => key),
-        back
-      )
+      same(entries.map(({ key }) => key), back)
       back.pop()
     }
 
@@ -343,7 +337,7 @@ describe('map', () => {
     same(result, [1, 2, 1])
     const bulk = [{ key: 'aaa', value: 3 }]
     const { blocks, root: rr } = await root.bulk(bulk)
-    await Promise.all(blocks.map((block) => put(block)))
+    await Promise.all(blocks.map(block => put(block)))
     same((await rr.get('aaa')).result, 3)
   })
   it('load non-existent key', async () => {
