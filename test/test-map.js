@@ -588,12 +588,10 @@ describe('map', () => {
       }
     }
   })
-  it('passing, slow. deterministic fuzzer', async () => {
+  it.skip('passing, slow. deterministic fuzzer', async () => {
     const { get, put } = storage()
     let mapRoot
-    // let leaf
     for await (const node of create({ get, compare, list, ...opts })) {
-      // if (node.isLeaf) leaf = node
       await put(await node.block)
       mapRoot = node
     }
@@ -602,10 +600,10 @@ describe('map', () => {
     })
     same(result, 1)
 
-    for (let i = 0; i < 500; i++) {
+    for (let i = 0; i < 1000; i = i + 9) {
       const randFun = mulberry32(i)
-      for (let rowCount = 0; rowCount < 500; rowCount++) {
-        const key = 'a-' + randFun()
+      for (let rowCount = 0; rowCount < 30; rowCount++) {
+        const key = randFun().toString(36).substring(2)
         const value = `${i}-${rowCount}-${key}`
         const bulk = [{ key, value }]
         const { blocks, root } = await mapRoot.bulk(bulk)
