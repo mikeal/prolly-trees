@@ -205,10 +205,7 @@ class Node {
       const mapper = async (entry) =>
         this.getNode(await entry.address)
           .then((node) => node._getAllEntries(cids))
-          .catch(async (err) => {
-            console.log('did not find', await entry.address)
-            throw err
-          })
+          .catch(async err => { throw err })
       return Promise.all(entries.map(mapper)).then((results) => results.flat())
     }
   }
