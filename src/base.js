@@ -107,59 +107,120 @@ async function sortBulk (bulk, opts) {
   return bulk.sort(({ key: a }, { key: b }) => opts.compare(a, b))
 }
 
-async function processRoot (that, results, bulk, nodeOptions) {
-  const root = results.root
-  const distance = root.distance
-  const first = root.entryList.startKey
+async function filterLeftmostInserts (first, bulk, compare) {
   const inserts = []
 
   for (const b of bulk) {
     const { key, del } = b
-    if (nodeOptions.opts.compare(key, first) < 0) {
+    if (compare(key, first) < 0) {
       if (!del) inserts.push(b)
     } else {
       break
     }
   }
 
-  if (inserts.length) {
-    const opts = nodeOptions.opts
-    const newLeaves = await await Node.from({
-      entries: inserts
-        .map((insert) => new opts.LeafEntryClass(insert, opts))
-        .sort((a, b) => that.compare(a.key, b.key)),
-      chunker: that.chunker,
-      NodeClass: opts.LeafClass,
-      distance: 0,
-      opts
+  return inserts
+}
+
+async function generateNewLeaves (inserts, opts, { chunker, compare }) {
+  return await Node.from({
+    entries: inserts
+      .map((insert) => new opts.LeafEntryClass(insert, opts))
+      .sort((a, b) => compare(a.key, b.key)),
+    chunker,
+    NodeClass: opts.LeafClass,
+    distance: 0,
+    opts
+  })
+}
+
+async function generateBranchEntries (newLeaves, opts) {
+  return await Promise.all(
+    newLeaves.map(async (node) => {
+      const newBranchEntry = new opts.BranchEntryClass(
+        { key: node.key, address: await node.address },
+        opts
+      )
+      return newBranchEntry
     })
+  )
+}
 
-    const branchEntries = await Promise.all(
-      newLeaves.map(async (node) => {
-        const newBranchEntry = new opts.BranchEntryClass({ key: node.key, address: await node.address }, opts)
-        return newBranchEntry
-      })
+async function generateNewBranches (nodeOptions, newBranchEntries, chunker, opts, distance) {
+  return await Node.from({
+    ...nodeOptions,
+    entries: newBranchEntries,
+    chunker,
+    NodeClass: opts.BranchClass,
+    distance: distance + 1,
+    opts
+  })
+}
+
+async function logNodes (newNodes) {
+  for (const node of newNodes) {
+    console.log(
+      'newNodes.entries',
+      node.constructor.name,
+      JSON.stringify(
+        await Promise.all(
+          node.entryList.entries.map(async ({ key, address, value }) => ({
+            key,
+            address: (await address)?.toString(),
+            value
+          }))
+        )
+      )
     )
+    console.log(
+      'newNodes.value',
+      node.constructor.name,
+      JSON.stringify(
+        (await node.block.value)?.branch
+          ? await node.block.value?.branch?.toString()
+          : node.block.value
+      )
+    )
+  }
+}
 
-    const firstRootEntry = new opts.BranchEntryClass(
+async function processRoot (that, results, bulk, nodeOptions) {
+  const root = results.root
+  const distance = root.distance
+  const first = root.entryList.startKey
+
+  const inserts = await filterLeftmostInserts(first, bulk, that.compare)
+  console.log('leftmost inserts', inserts)
+
+  if (inserts.length) {
+    const newLeaves = await generateNewLeaves(inserts, nodeOptions.opts, that)
+    const branchEntries = await generateBranchEntries(newLeaves, nodeOptions.opts)
+
+    const firstRootEntry = new nodeOptions.opts.BranchEntryClass(
       {
         key: root.entryList.startKey,
         address: await root.address
       },
-      opts
+      nodeOptions.opts
     )
-    const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => opts.compare(a, b))
+    const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => nodeOptions.opts.compare(a, b))
 
-    const newBranches = await Node.from({
-      ...nodeOptions,
-      entries: newBranchEntries,
-      chunker: that.chunker,
-      NodeClass: opts.BranchClass,
-      distance: distance + 1,
-      opts
-    })
+    for (const entry of newBranchEntries) {
+      console.log('new branch entry', entry.key)
+    }
 
+    const newBranches = await generateNewBranches(
+      nodeOptions,
+      newBranchEntries,
+      that.chunker,
+      nodeOptions.opts,
+      distance
+    )
+    console.log('newLeaves', newLeaves.length)
+    console.log('newBranches', newBranches.length)
     const newNodes = [...newLeaves, ...newBranches, root]
+    logNodes(newNodes)
+
     const newBlocks = await Promise.all(newNodes.map(async (m) => await m.block))
 
     results.root = newBranches[0]
