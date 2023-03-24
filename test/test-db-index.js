@@ -92,7 +92,7 @@ describe('db index', () => {
     for (const { key } of list) {
       const expected = list.map(entry => {
         if (entry.key[0] !== key[0]) return null
-        return { id: entry.key[1], row: entry.value }
+        return { id: entry.key[1], key: entry.key[0], row: entry.value }
       }).filter(x => x)
       const { result } = await root.get(key[0])
       same(result, expected)
@@ -104,8 +104,8 @@ describe('db index', () => {
     const { result: results } = await leaf.range('z', 'zzzzz')
     same(results.length, 1)
     result = results[0]
-    same(result.id, 'zz')
-    same(result.key, 9)
+    same(result.id, 9)
+    same(result.key, 'zz')
   })
   it('string create', async () => {
     const { get, put } = storage()
@@ -134,7 +134,7 @@ describe('db index', () => {
     for (const { key } of stringDocIdList) {
       const expected = stringDocIdList.map(entry => {
         if (entry.key[0] !== key[0]) return null
-        return { id: entry.key[1], row: entry.value }
+        return { id: entry.key[1], key: key[0], row: entry.value }
       }).filter(x => x)
       const { result } = await root.get(key[0])
       same(result.id, expected.id)
@@ -147,8 +147,8 @@ describe('db index', () => {
     const { result: results } = await leaf.range('z', 'zzzzz')
     same(results.length, 1)
     result = results[0]
-    same(result.id, 'zz')
-    same(result.key, 't9')
+    same(result.key, 'zz')
+    same(result.id, 't9')
   })
   it('range', async () => {
     const { get, put } = storage()
@@ -159,7 +159,7 @@ describe('db index', () => {
     }
     const verify = (entries, start, end) => {
       const comp = list.slice(start, end).map(entry => {
-        const [id, key] = entry.key
+        const [key, id] = entry.key
         return { id, key, row: entry.value }
       })
       same(entries, comp)
@@ -178,20 +178,21 @@ describe('db index', () => {
     const { get, put } = storage()
     const badDocIdList = createList([
       [['a', 't0'], cid],
+      [['b', 't1'], cid],
       [['b', NaN], cid],
       [['b', 't2'], cid],
       [['c', 't3'], cid],
+      [['c', Infinity], cid],
       [['c', 't4'], cid],
       [['d', 't5'], cid],
-      [['f', 't6'], cid],
-      [['h', 't7'], cid],
-      [['zz', 't9'], cid]
+      [['f', 't6'], cid]
     ])
 
     try {
       for await (const node of create({ get, list: badDocIdList, ...opts })) {
         await put(await node.block)
       }
+      same(false, 'should have thrown')
     } catch (err) {
       same(err.message, 'ref may not be Infinity or NaN')
     }
@@ -230,8 +231,20 @@ describe('db index', () => {
     same(ids(await getval('b')), [1])
     same(ids(await getval('z')), [41])
 
+    const getrange = async (start, end) => (await root.range(start, end)).result
+    const gotrange = await getrange('a', 'z')
+    let { id, key } = gotrange[0]
+    same({ id, key }, { id: 0, key: 'a' })
+    ;({ id, key } = gotrange[1])
+    same({ id, key }, { id: 40, key: 'a' })
+    ;({ id, key } = gotrange[2])
+    same({ id, key }, { id: 1, key: 'b' })
+    ;({ id, key } = gotrange[3])
+    same({ id, key }, { id: 3, key: 'c' })
+    ;({ id, key } = gotrange[4])
+    same({ id, key }, { id: 4, key: 'c' })
     bulk = [{ key: ['zz', 42], value }, { key: ['zz', 9], del: true }]
-    const { root: newRoot, blocks: newBlocks } = await leaf.bulk(bulk)
+    const { root: newRoot, blocks: newBlocks } = await leaf.bulk(bulk, {}, false)
     await Promise.all(newBlocks.map(b => put(b)))
     same(ids((await newRoot.get('zz')).result), [42])
   })

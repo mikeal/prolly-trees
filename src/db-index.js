@@ -21,7 +21,13 @@ const getIndex = async (node, key) => {
   const start = [key, NaN]
   const end = [key, Infinity]
   const { result: entries, cids } = await node.getRangeEntries(start, end)
-  return { result: entries.map(entry => ({ id: entry.key[1], row: entry.value })), cids }
+  return {
+    result: entries.map(entry => {
+      const [key, id] = entry.key
+      return { id, key, row: entry.value }
+    }),
+    cids
+  }
 }
 
 const getRange = async (node, start, end) => {
@@ -29,7 +35,7 @@ const getRange = async (node, start, end) => {
   end = [end, Infinity]
   const { result: entries, cids } = await node.getRangeEntries(start, end)
   const result = entries.map(entry => {
-    const [id, key] = entry.key
+    const [key, id] = entry.key
     return { id, key, row: entry.value }
   })
   return { result, cids }
@@ -44,8 +50,8 @@ class DBIndexLeaf extends MapLeaf {
     return getRange(this, start, end)
   }
 
-  bulk (bulk, opts = {}) {
-    return super.bulk(bulk, { ...classes, ...opts })
+  bulk (bulk, opts = {}, isRoot = true) {
+    return super.bulk(bulk, { ...classes, ...opts }, isRoot)
   }
 }
 
@@ -58,8 +64,8 @@ class DBIndexBranch extends MapBranch {
     return getRange(this, start, end)
   }
 
-  bulk (bulk, opts = {}) {
-    return super.bulk(bulk, { ...classes, ...opts })
+  bulk (bulk, opts = {}, isRoot = true) {
+    return super.bulk(bulk, { ...classes, ...opts }, isRoot)
   }
 }
 
