@@ -522,6 +522,11 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
+    console.log('from', distance, entries.length)
+    if (!entries.every(entry => entry.constructor.name === entries[0].constructor.name)) {
+      console.log('mixed entry types', (await Promise.all(entries.map(async ({ key, address, value }) => ({ key, address: (await address)?.toString(), value })))))
+      throw new Error('all entries must be of the same type')
+    }
     const parts = []
     let chunk = []
     for (const entry of entries) {
