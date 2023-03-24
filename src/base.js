@@ -103,7 +103,7 @@ class EntryList {
 
 const stringKey = key => typeof key === 'string' ? key : JSON.stringify(key)
 
-async function sortBulk (bulk, opts) {
+function sortBulk (bulk, opts) {
   return bulk.sort(({ key: a }, { key: b }) => opts.compare(a, b))
 }
 
@@ -435,7 +435,7 @@ class Node {
     }
 
     if (!opts.sorted) {
-      bulk = await sortBulk(bulk, opts)
+      bulk = sortBulk(bulk, opts)
       opts.sorted = true
     }
 
