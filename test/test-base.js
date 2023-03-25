@@ -33,7 +33,8 @@ describe('base', () => {
     LeafEntryClass: Entry,
     BranchClass: Node,
     BranchEntryClass: Entry,
-    chunker
+    chunker,
+    compare
   }
   it('basic create', async () => {
     const list = [false, true, false].map(mapper)

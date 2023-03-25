@@ -388,9 +388,12 @@ class Node {
       for (const [, i] of deletes) {
         entries.splice(i - count++, 1)
       }
+      // entries is length 1 MapLeafEntry key: '!' value: '33-!'
       const appends = Object.values(changes).map(obj => {
         return new LeafEntryClass(obj, opts)
       })
+      // appends is length 1 MapLeafEntry key: '"' value: '33-"'
+
       // TODO: there's a faster version of this that only does one iteration
       entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
       const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
@@ -419,18 +422,32 @@ class Node {
       let prepend = null
       for (let entry of entries) {
         if (prepend) {
+          let mergeEntries
           if (entry.isEntry) entry = await this.getNode(await entry.address)
-          const entries = prepend.entryList.entries.concat(entry.entryList.entries)
+          // prepend.entryList.entries are sometimes MapLeafEntry while
+          // existing entries are MapBranchEntry
+          // got entry is DbIndex(Map)Leaf with
+          //      entryList.entries[0] = MapLeafEntry key: ['zz',9] value: CID
+          if ((!entry.entryList.entries[0].value) && (!!prepend.entryList.entries[0].value)) {
+            // console.log('prepend.entryList', prepend.entryList.entries[0].constructor.name)
+            // console.log('entryentry', entry.entryList.entries[0].constructor.name)
+            // console.log('prepend.constructor.name', prepend.constructor.name)
+            // prepend is a leaf, make a BranchEntry for it
+            prepend = new BranchEntryClass({ key: prepend.entryList.entries[0].key, address: prepend.cid }, opts)
+            mergeEntries = [prepend, ...entry.entryList.entries]
+          } else {
+            mergeEntries = prepend.entryList.entries.concat(entry.entryList.entries)
+          }
+
           prepend = null
           const NodeClass = distance === 0 ? LeafClass : BranchClass
           const _opts = {
             ...nodeOptions,
-            entries: entries.sort(({ key: a }, { key: b }) =>
-              opts.compare(a, b)),
+            entries: mergeEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
             NodeClass,
             distance
           }
-          const nodes = await Node.from(_opts)
+          const nodes = await Node.from(_opts) // this is sending mixed types in
           if (!nodes[nodes.length - 1].closed) {
             prepend = nodes.pop()
           }
@@ -481,7 +498,7 @@ class Node {
     const nodeOptions = { chunker: this.chunker, opts }
 
     const results = await this.transaction(bulk, opts)
-
+    // console.log('results.nodes', results.nodes.map(n => ({ cls: n.constructor.name, entries: JSON.stringify(n.entryList.entries.map(e => ({ key: e.key, value: e.value, address: e.address.toString() }))) })))
     while (results.nodes.length > 1) {
       const newDistance = results.nodes[0].distance + 1
 
@@ -527,6 +544,7 @@ class Node {
       console.log('mixed entry types', (await Promise.all(entries.map(async ({ key, address, value }) => ({ key, address: (await address)?.toString(), value })))))
       throw new Error('all entries must be of the same type')
     }
+    // entries = entries.sort(({ key: a }, { key: b }) => opts.compare(a, b))
     const parts = []
     let chunk = []
     for (const entry of entries) {
