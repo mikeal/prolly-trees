@@ -134,9 +134,12 @@ async function generateNewLeaves (inserts, opts, { chunker, compare }) {
   })
 }
 
-async function generateBranchEntries (newLeaves, opts) {
+async function generateBranchEntries (that, newLeaves, results, opts) {
   return await Promise.all(
     newLeaves.map(async (node) => {
+      const block = await node.encode()
+      results.blocks.push(block)
+      that.cache.set(node)
       const newBranchEntry = new opts.BranchEntryClass(
         { key: node.key, address: await node.address },
         opts
@@ -194,37 +197,43 @@ async function processRoot (that, results, bulk, nodeOptions) {
 
   if (inserts.length) {
     const newLeaves = await generateNewLeaves(inserts, nodeOptions.opts, that)
-    const branchEntries = await generateBranchEntries(newLeaves, nodeOptions.opts)
+    const branchEntries = await generateBranchEntries(that, newLeaves, results, nodeOptions.opts)
 
     const firstRootEntry = new nodeOptions.opts.BranchEntryClass(
       {
         key: root.entryList.startKey,
-        address: await root.address
+        address: await root.address // this one is already saved to results.blocks or written earlier?
       },
       nodeOptions.opts
     )
+    results.blocks.push((await root.encode()))
+    that.cache.set(root)
     const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => nodeOptions.opts.compare(a, b))
 
-    for (const entry of newBranchEntries) {
-      console.log('new branch entry', entry.key)
-    }
+    // for (const entry of newBranchEntries) {
+    //   console.log('new branch entry', entry.key)
+    // }
 
-    const newBranches = await generateNewBranches(
-      nodeOptions,
-      newBranchEntries,
-      that.chunker,
-      nodeOptions.opts,
-      distance
-    )
+    const newBranches = await Node.from({
+      ...nodeOptions,
+      entries: newBranchEntries,
+      chunker: that.chunker,
+      NodeClass: nodeOptions.opts.BranchClass,
+      distance: distance + 1
+    })
+    await Promise.all(newBranches.map(async (m) => {
+      const block = await m.block
+      that.cache.set(m)
+      results.blocks.push(block)
+      // return block
+    }))
     console.log('newLeaves', newLeaves.length)
     console.log('newBranches', newBranches.length)
     const newNodes = [...newLeaves, ...newBranches, root]
-    logNodes(newNodes)
-
-    const newBlocks = await Promise.all(newNodes.map(async (m) => await m.block))
+    // logNodes(newNodes)
 
     results.root = newBranches[0]
-    results.blocks = [...results.blocks, ...newBlocks]
+    // results.blocks = [...results.blocks]
     results.nodes = newNodes
   }
 }
@@ -398,6 +407,7 @@ class Node {
       entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
       const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
       const nodes = await Node.from(_opts)
+      // why is blocks empty?
       return { nodes, previous, blocks: [], distance: 0 }
     } else {
       let distance = 0
@@ -420,8 +430,12 @@ class Node {
       // TODO: rewrite this to use getNode concurrently on merge
       let newEntries = []
       let prepend = null
+      console.log('Start of transaction loop with entries:', distance, JSON.stringify(entries.map(e => e.key)))
       for (let entry of entries) {
         if (prepend) {
+          console.log('Current entry:', distance, entry.key, entry.address)
+          console.log('Prepend:', JSON.stringify(prepend.entryList.entries.map(e => e.key)))
+
           let mergeEntries
           if (entry.isEntry) entry = await this.getNode(await entry.address)
           // prepend.entryList.entries are sometimes MapLeafEntry while
@@ -429,11 +443,15 @@ class Node {
           // got entry is DbIndex(Map)Leaf with
           //      entryList.entries[0] = MapLeafEntry key: ['zz',9] value: CID
           if ((!entry.entryList.entries[0].value) && (!!prepend.entryList.entries[0].value)) {
-            // console.log('prepend.entryList', prepend.entryList.entries[0].constructor.name)
+            console.log('prepend.cid', prepend.cid)
             // console.log('entryentry', entry.entryList.entries[0].constructor.name)
             // console.log('prepend.constructor.name', prepend.constructor.name)
             // prepend is a leaf, make a BranchEntry for it
-            prepend = new BranchEntryClass({ key: prepend.entryList.entries[0].key, address: prepend.cid }, opts)
+            // todo we neeed to do the logic from toEntry here
+            const block = await prepend.encode()
+            final.blocks.push(block)
+            this.cache.set(prepend)
+            prepend = new BranchEntryClass({ key: prepend.key, address: prepend.cid }, opts)
             mergeEntries = [prepend, ...entry.entryList.entries]
           } else {
             mergeEntries = prepend.entryList.entries.concat(entry.entryList.entries)
@@ -462,6 +480,8 @@ class Node {
           }
         }
       }
+      console.log('After transaction loop with prepend:', JSON.stringify(prepend?.entryList.entries.map(e => e.key)))
+
       if (prepend) {
         newEntries.push(prepend)
       }
@@ -473,6 +493,8 @@ class Node {
         this.cache.set(branch)
         return new BranchEntryClass(branch, opts)
       }
+      console.log('End of transaction loop with newEntries:', JSON.stringify(newEntries.map(n => ({ cls: n.constructor.name, entries: n.entryList?.entries.map(e => e.key) }))))
+      // we need this equivalent of this logic for
       entries = await Promise.all(newEntries.map(toEntry))
       const _opts = { ...nodeOptions, entries, NodeClass: BranchClass, distance }
       return { nodes: await Node.from(_opts), ...final, distance }

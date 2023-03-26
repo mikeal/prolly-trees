@@ -550,10 +550,9 @@ describe('map', () => {
 
   it('big map', async () => {
     const { get, put } = storage()
+
     let mapRoot
-    // let leaf
     for await (const node of create({ get, compare, list, ...opts })) {
-      // if (node.isLeaf) leaf = node
       await put(await node.block)
       mapRoot = node
     }
@@ -565,24 +564,23 @@ describe('map', () => {
     const { blocks: blockX, root: rootX } = await mapRoot.bulk([{ key: 'ok', value: 200 }])
     await Promise.all(blockX.map((block) => put(block)))
     mapRoot = rootX
-
     const { result: result2 } = await mapRoot.get('ok').catch((e) => {
       same(e.message, 'Failed at key: ok')
     })
     same(result2, 200)
 
     const prefixes = ['b', 'A', '0', '']
-
     for (const prefix of prefixes) {
+      console.log('prefix', prefix)
       for (let index = 10; index > 0; index--) {
         const key = prefix + index.toString()
+        console.log('bigmap key', key)
         const bulk = [{ key, value: index }]
         const { blocks, root } = await mapRoot.bulk(bulk)
         await Promise.all(blocks.map((block) => put(block)))
         mapRoot = root
         const { result: result3 } = await mapRoot.get(key).catch((e) => {
           throw Error("Couldn't find key: " + key)
-          // same(e.message, 'Failed at key: ' + key)
         })
         same(result3, index)
       }
