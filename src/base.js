@@ -435,23 +435,34 @@ class Node {
         if (prepend) {
           console.log('Current entry:', distance, entry.key, entry.address)
           console.log('Prepend:', JSON.stringify(prepend.entryList.entries.map(e => e.key)))
-
+          distance = entry.distance
           let mergeEntries
           if (entry.isEntry) entry = await this.getNode(await entry.address)
           // prepend.entryList.entries are sometimes MapLeafEntry while
           // existing entries are MapBranchEntry
           // got entry is DbIndex(Map)Leaf with
           //      entryList.entries[0] = MapLeafEntry key: ['zz',9] value: CID
+          // test on LeafClass : BranchClass
+
           if ((!entry.entryList.entries[0].value) && (!!prepend.entryList.entries[0].value)) {
-            console.log('prepend.cid', prepend.cid)
-            // console.log('entryentry', entry.entryList.entries[0].constructor.name)
+            // in this case, entry.entryList.entries are BranchEntryClass members
+            // and prepend.entryList.entries are LeafEntryClass members
+            // so we create a new BranchEntryClass for prepend
+            // and add it to the entry.entryList.entries
+            // * and replace entry using Node.from
+
+            // we need to make a leaf for our bulk prepend?
+
+            console.log('prepend.address', await prepend.address)
+            console.log('entryentry', entry.entryList.entries)
             // console.log('prepend.constructor.name', prepend.constructor.name)
             // prepend is a leaf, make a BranchEntry for it
             // todo we neeed to do the logic from toEntry here
             const block = await prepend.encode()
             final.blocks.push(block)
             this.cache.set(prepend)
-            prepend = new BranchEntryClass({ key: prepend.key, address: prepend.cid }, opts)
+            prepend = new BranchEntryClass({ key: prepend.key, address: await prepend.address }, opts)
+            // this should be added to the entryList.entries, not the mergeEntries?
             mergeEntries = [prepend, ...entry.entryList.entries]
           } else {
             mergeEntries = prepend.entryList.entries.concat(entry.entryList.entries)
