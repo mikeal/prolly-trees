@@ -435,7 +435,7 @@ class Node {
         if (prepend) {
           console.log('Current entry:', distance, entry.key, entry.address)
           console.log('Prepend:', JSON.stringify(prepend.entryList.entries.map(e => e.key)))
-          distance = entry.distance
+          distance = distance + 1
           let mergeEntries
           if (entry.isEntry) entry = await this.getNode(await entry.address)
           // prepend.entryList.entries are sometimes MapLeafEntry while
