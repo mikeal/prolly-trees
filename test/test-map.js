@@ -571,19 +571,15 @@ describe('map', () => {
 
     const prefixes = ['b', 'A', '0', '']
     for (const prefix of prefixes) {
-      console.log('prefix', prefix)
       for (let index = 10; index > 0; index--) {
         const key = prefix + index.toString()
-        console.log('bigmap key', key)
         const bulk = [{ key, value: index }]
         const { blocks, root } = await mapRoot.bulk(bulk)
         await Promise.all(blocks.map((block) => put(block)))
         mapRoot = root
         const { result: result3 } = await mapRoot.get(key).catch((e) => {
-          console.log('error', e.message, e)
           throw Error("Couldn't find key: " + key)
         })
-        console.log('got result for key', key, 'index', index)
         same(result3, index)
       }
     }

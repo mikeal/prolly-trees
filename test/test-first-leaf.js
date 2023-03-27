@@ -276,14 +276,10 @@ describe('map first-leaf', () => {
       for (const block of blocks) {
         await put(block)
       }
-      console.log('put', value)
       mapRoot = root
       const got = await mapRoot.get(key).catch((e) => e)
-      console.log('got', got.result)
       same(got.result, value, `failed at ${value} w/ ${JSON.stringify(got.result)}`)
     }
-    // console.log('errors', errors)
-    // same(errors.length, 0)
   })
 
   it('next failing test case two', async () => {
@@ -306,14 +302,10 @@ describe('map first-leaf', () => {
       for (const block of blocks) {
         await put(block)
       }
-      console.log('put', value)
       mapRoot = root
       const got = await mapRoot.get(key).catch((e) => e)
-      console.log('got', got.result)
       same(got.result, value, `failed at ${value} w/ ${JSON.stringify(got.result)}`)
     }
-    // console.log('errors', errors)
-    // same(errors.length, 0)
   })
   it('basic numeric string key', async () => {
     const { get, put } = storage()
