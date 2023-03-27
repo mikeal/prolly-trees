@@ -90,6 +90,7 @@ const createGetNode = (get, cache, chunker, codec, hasher, compare, opts) => {
       const [distance, _entries] = value.branch
       opts.distance = distance
       entries = _entries.map(([key, address]) => new BranchEntryClass({ key, address }, entryOpts))
+      console.log('entries decoder', entries.map(e => [e.key, e.address]), JSON.stringify(value), block.cid)
       CLS = BranchClass
     } /* c8 ignore next */ else {
       /* c8 ignore next */
