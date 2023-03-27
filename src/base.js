@@ -137,10 +137,11 @@ async function generateNewLeaves (inserts, opts, { chunker, compare }) {
 async function generateBranchEntries (that, newLeaves, results, opts) {
   return await Promise.all(
     newLeaves.map(async (node) => {
+      console.log('encode', node.address)
       const block = await node.encode()
       results.blocks.push(block)
       that.cache.set(node)
-      // console.log("br")
+
       const newBranchEntry = new opts.BranchEntryClass(
         { key: node.key, address: await node.address },
         opts
@@ -185,7 +186,7 @@ async function processRoot (that, results, bulk, nodeOptions) {
       distance: distance + 1
     })
     await Promise.all(newBranches.map(async (m) => {
-      const block = await m.block
+      const block = await m.encode()
       that.cache.set(m)
       results.blocks.push(block)
       // return block
@@ -589,6 +590,7 @@ class Node {
           const block = await node.encode()
           results.blocks.push(block)
           this.cache.set(node)
+          console.log('brnach ebtry', node.key, node.constructor.name, await node.address)
           return new opts.BranchEntryClass(node, opts)
         })
       )
@@ -600,14 +602,15 @@ class Node {
         distance: newDistance
       })
 
-      const encodedBlocks = await Promise.all(
+      await Promise.all(
         newNodes.map(async node => {
-          return await node.encode()
+          const block = await node.encode()
+          this.cache.set(node)
+          results.blocks.push(block)
         })
       )
 
       results.nodes = newNodes
-      results.blocks.push(...encodedBlocks)
     }
 
     const [root] = results.nodes
@@ -639,6 +642,7 @@ class Node {
     if (chunk.length) {
       parts.push(new EntryList({ entries: chunk, closed: false }))
     }
+    console.log('node.from', distance, NodeClass, parts.map(p => p.entries))
     return parts.map(entryList => new NodeClass({ entryList, chunker, distance, ...opts }))
   }
 }
@@ -674,8 +678,16 @@ class IPLDNode extends Node {
 class IPLDBranch extends IPLDNode {
   async encodeNode () {
     const { entries } = this.entryList
-    const mapper = async entry => [entry.key, await entry.address]
+    const mapper = async entry => {
+      console.log('encodeNode', entry.constructor.name, entry.key, await entry.address)
+      if (!entry.address) {
+        console.log('no address', entry.constructor.name, entry.key, entry.value)
+        throw new Error('no address')
+      }
+      return [entry.key, await entry.address]
+    }
     const list = await Promise.all(entries.map(mapper))
+    console.log('encodeNodez', this.distance, list)
     return { branch: [this.distance, list], closed: this.closed }
   }
 
