@@ -277,11 +277,10 @@ class Node {
     }
 
     if (!entries.length) return []
-    const thenRange = async entry => {
-      return this.getNode(await entry.address).then(node => {
-        return node._getRangeEntries(start, end, cids)
-      })
-    }
+    const thenRange = async entry =>
+      this.getNode(await entry.address).then(node =>
+        node._getRangeEntries(start, end, cids))
+
     const results = [thenRange(entries.shift())]
 
     if (!entries.length) return results[0]
@@ -289,9 +288,8 @@ class Node {
 
     while (entries.length) {
       const thenAll = async (entry) =>
-        this.getNode(await entry.address).then(async node => {
-          return node._getAllEntries(cids)
-        })
+        this.getNode(await entry.address).then(async node =>
+          node._getAllEntries(cids))
       results.push(thenAll(entries.shift()))
     }
     results.push(last)
@@ -570,7 +568,6 @@ class IPLDBranch extends IPLDNode {
       return [entry.key, await entry.address]
     }
     const list = await Promise.all(entries.map(mapper))
-    // console.log('encodeNodez', this.distance, list)
     return { branch: [this.distance, list], closed: this.closed }
   }
 
