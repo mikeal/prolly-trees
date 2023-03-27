@@ -134,9 +134,12 @@ async function generateNewLeaves (inserts, opts, { chunker, compare }) {
   })
 }
 
-async function generateBranchEntries (newLeaves, opts) {
+async function generateBranchEntries (that, newLeaves, results, opts) {
   return await Promise.all(
     newLeaves.map(async (node) => {
+      const block = await node.encode()
+      results.blocks.push(block)
+      that.cache.set(node)
       const newBranchEntry = new opts.BranchEntryClass(
         { key: node.key, address: await node.address },
         opts
@@ -146,47 +149,33 @@ async function generateBranchEntries (newLeaves, opts) {
   )
 }
 
-async function generateNewBranches (nodeOptions, newBranchEntries, chunker, opts, distance) {
-  return await Node.from({
-    ...nodeOptions,
-    entries: newBranchEntries,
-    chunker,
-    NodeClass: opts.BranchClass,
-    distance: distance + 1,
-    opts
-  })
-}
-
 async function processRoot (that, results, bulk, nodeOptions) {
   const root = results.root
+  const opts = nodeOptions.opts
   const distance = root.distance
   const first = root.entryList.startKey
   const inserts = await filterLeftmostInserts(first, bulk, that.compare)
-
   if (inserts.length) {
-    const newLeaves = await generateNewLeaves(inserts, nodeOptions.opts, that)
-    const branchEntries = await generateBranchEntries(newLeaves, nodeOptions.opts)
-    const firstRootEntry = new nodeOptions.opts.BranchEntryClass(
-      {
-        key: root.entryList.startKey,
-        address: await root.address
-      },
-      nodeOptions.opts
-    )
-    const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => nodeOptions.opts.compare(a, b))
-    const newBranches = await generateNewBranches(
-      nodeOptions,
-      newBranchEntries,
-      that.chunker,
-      nodeOptions.opts,
-      distance
-    )
-    const newNodes = [...newLeaves, ...newBranches, root]
-    const newBlocks = await Promise.all(newNodes.map(async (m) => await m.block))
-
+    const newLeaves = await generateNewLeaves(inserts, opts, that)
+    const branchEntries = await generateBranchEntries(that, newLeaves, results, opts)
+    const firstRootEntry = new opts.BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
+    results.blocks.push((await root.encode()))
+    that.cache.set(root)
+    const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => opts.compare(a, b))
+    const newBranches = await Node.from({
+      ...nodeOptions,
+      entries: newBranchEntries,
+      chunker: that.chunker,
+      NodeClass: opts.BranchClass,
+      distance: distance + 1
+    })
+    await Promise.all(newBranches.map(async (m) => {
+      const block = await m.encode()
+      that.cache.set(m)
+      results.blocks.push(block)
+    }))
     results.root = newBranches[0]
-    results.blocks = [...results.blocks, ...newBlocks]
-    results.nodes = newNodes
+    results.nodes = [...newLeaves, ...newBranches, root]
   }
 }
 
@@ -289,9 +278,9 @@ class Node {
 
     if (!entries.length) return []
     const thenRange = async entry =>
-      this.getNode(await entry.address).then(node => {
-        return node._getRangeEntries(start, end, cids)
-      })
+      this.getNode(await entry.address).then(node =>
+        node._getRangeEntries(start, end, cids))
+
     const results = [thenRange(entries.shift())]
 
     if (!entries.length) return results[0]
@@ -299,9 +288,8 @@ class Node {
 
     while (entries.length) {
       const thenAll = async (entry) =>
-        this.getNode(await entry.address).then(async node => {
-          return node._getAllEntries(cids)
-        })
+        this.getNode(await entry.address).then(async node =>
+          node._getAllEntries(cids))
       results.push(thenAll(entries.shift()))
     }
     results.push(last)
@@ -349,13 +337,12 @@ class Node {
       for (const [, i] of deletes) {
         entries.splice(i - count++, 1)
       }
-      const appends = Object.values(changes).map(obj => {
-        return new LeafEntryClass(obj, opts)
-      })
+      const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
       // TODO: there's a faster version of this that only does one iteration
       entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
       const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
       const nodes = await Node.from(_opts)
+      // why is blocks empty?
       return { nodes, previous, blocks: [], distance: 0 }
     } else {
       let distance = 0
@@ -378,18 +365,16 @@ class Node {
       // TODO: rewrite this to use getNode concurrently on merge
       let newEntries = []
       let prepend = null
-      for (let entry of entries) {
+      for (const entry of entries) {
         if (prepend) {
-          if (entry.isEntry) entry = await this.getNode(await entry.address)
-          const entries = prepend.entryList.entries.concat(entry.entryList.entries)
+          const mergeEntries = await this.mergeFirstLeftEntries(entry, prepend, nodeOptions, final, distance)
           prepend = null
-          const NodeClass = distance === 0 ? LeafClass : BranchClass
+          const NodeClass = !mergeEntries[0].address ? LeafClass : BranchClass
           const _opts = {
             ...nodeOptions,
-            entries: entries.sort(({ key: a }, { key: b }) =>
-              opts.compare(a, b)),
+            entries: mergeEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
             NodeClass,
-            distance
+            distance: distance // TODO: is this right?
           }
           const nodes = await Node.from(_opts)
           if (!nodes[nodes.length - 1].closed) {
@@ -423,6 +408,53 @@ class Node {
     }
   }
 
+  async mergeFirstLeftEntries (entry, prepend, nodeOptions, final, distance) {
+    const opts = nodeOptions.opts
+    const { LeafClass, BranchClass, BranchEntryClass } = opts
+    if (entry.isEntry) { entry = await this.getNode(await entry.address) }
+    const es = entry.entryList.entries
+    if (es[0].constructor.name === prepend.entryList.entries[0].constructor.name) {
+      return prepend.entryList.entries.concat(entry.entryList.entries)
+    } else {
+      /* c8 ignore next */
+      if (!es[0].address) throw new Error('unreachable existing leaf')
+      const mergeLeftEntries = await this.mergeFirstLeftEntries(es.shift(), prepend, nodeOptions, final, distance - 1)
+      // are both these shifts legit?
+      const oldFront = await this.getNode(await es.shift().address)
+      if (!oldFront.entryList.entries[0].address) {
+        return mergeLeftEntries.concat(oldFront.entryList.entries)
+      } else {
+        /* c8 ignore next */
+        if (mergeLeftEntries[0].address) throw new Error('unreachable merge leaf')
+        const mergeLeftNodes = await Node.from({
+          ...nodeOptions,
+          entries: mergeLeftEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
+          NodeClass: LeafClass,
+          distance
+        })
+        const mergeLeftBranchEntries = await Promise.all(mergeLeftNodes.map(async l => {
+          final.blocks.push(await l.encode())
+          this.cache.set(l)
+          return new BranchEntryClass({ key: l.key, address: await l.address }, opts)
+        }))
+        const newFirstNodes = await Node.from({
+          ...nodeOptions,
+          entries: [...oldFront.entryList.entries, ...mergeLeftBranchEntries].sort(({ key: a }, { key: b }) => opts.compare(a, b)),
+          NodeClass: BranchClass,
+          distance
+        })
+        await Promise.all(newFirstNodes.map(async l => {
+          final.blocks.push(await l.encode())
+          this.cache.set(l)
+        }))
+        const newBranchEntries = await Promise.all(newFirstNodes.map(async (l) => {
+          return new BranchEntryClass({ key: l.key, address: await l.address }, opts)
+        }))
+        return newBranchEntries
+      }
+    }
+  }
+
   async bulk (bulk, opts = {}, isRoot = true) {
     const { BranchClass } = opts
     opts = {
@@ -442,7 +474,6 @@ class Node {
     const nodeOptions = { chunker: this.chunker, opts }
 
     const results = await this.transaction(bulk, opts)
-
     while (results.nodes.length > 1) {
       const newDistance = results.nodes[0].distance + 1
 
@@ -462,14 +493,15 @@ class Node {
         distance: newDistance
       })
 
-      const encodedBlocks = await Promise.all(
+      await Promise.all(
         newNodes.map(async node => {
-          return await node.encode()
+          const block = await node.encode()
+          this.cache.set(node)
+          results.blocks.push(block)
         })
       )
 
       results.nodes = newNodes
-      results.blocks.push(...encodedBlocks)
     }
 
     const [root] = results.nodes
@@ -483,6 +515,8 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
+    /* c8 ignore next */
+    if (!entries.every(entry => entry.constructor.name === entries[0].constructor.name)) throw new Error('all entries must be of the same type')
     const parts = []
     let chunk = []
     for (const entry of entries) {
@@ -530,7 +564,11 @@ class IPLDNode extends Node {
 class IPLDBranch extends IPLDNode {
   async encodeNode () {
     const { entries } = this.entryList
-    const mapper = async entry => [entry.key, await entry.address]
+    const mapper = async entry => {
+      /* c8 ignore next */
+      if (!entry.address) throw new Error('entry.address required')
+      return [entry.key, await entry.address]
+    }
     const list = await Promise.all(entries.map(mapper))
     return { branch: [this.distance, list], closed: this.closed }
   }

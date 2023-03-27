@@ -21,6 +21,12 @@ class MapLeafEntry extends MapEntry {
 }
 
 class MapBranchEntry extends MapEntry {
+  constructor (node, opts) {
+    /* c8 ignore next */
+    if (!node.address) throw new Error('Cannot create MapBranchEntry without address')
+    super(node, opts)
+  }
+
   async encodeNode () {
     return [this.key, await this.address]
   }

@@ -248,4 +248,42 @@ describe('db index', () => {
     await Promise.all(newBlocks.map(b => put(b)))
     same(ids((await newRoot.get('zz')).result), [42])
   })
+  it('bulk simpler', async () => {
+    const { get, put } = storage()
+    let base
+    for await (const node of create({ get, list, ...opts })) {
+      await put(await node.block)
+      base = node
+    }
+    const value = cid
+    let bulk = [{ key: ['i', 41], value }]
+    const { root, blocks } = await base.bulk(bulk)
+    await Promise.all(blocks.map(b => put(b)))
+    const ids = results => results.map(({ id }) => id)
+    const getval = async k => (await root.get(k)).result
+    same(ids(await getval('i')), [41])
+
+    const getrange = async (start, end) => (await root.range(start, end)).result
+    const gotrange = await getrange('a', 'z')
+    let { id, key } = gotrange[0]
+    same({ id, key }, { id: 0, key: 'a' })
+    ;({ id, key } = gotrange[1])
+    same({ id, key }, { id: 1, key: 'b' })
+    ;({ id, key } = gotrange[2])
+    same({ id, key }, { id: 2, key: 'b' })
+    ;({ id, key } = gotrange[3])
+    same({ id, key }, { id: 3, key: 'c' })
+    ;({ id, key } = gotrange[4])
+    same({ id, key }, { id: 4, key: 'c' })
+    bulk = [{ key: ['zz', 42], value }, { key: ['zz', 9], del: true }]
+    const { root: newRoot, blocks: newBlocks } = await root.bulk(bulk, {}, false)
+    await Promise.all(newBlocks.map(b => put(b)))
+    same(ids((await newRoot.get('zz')).result), [42])
+
+    const gotAll = await newRoot.getAllEntries()
+    same(gotAll.result.map(r => r.key[1]), [0, 1, 2, 3, 4, 5, 6, 7, 41, 42])
+
+    same(((await newRoot.get('b')).result).map(r => r.id), [1, 2])
+    same(ids((await newRoot.get('i')).result), [41])
+  })
 })

@@ -260,15 +260,14 @@ describe('map first-leaf', () => {
     const { get, put } = storage()
     let mapRoot
 
-    for await (const node of create({ get, compare, list, ...opts })) {
+    for await (const node of create({ get, compare, list: list, ...opts })) {
       await put(await node.block)
       mapRoot = node
     }
 
     const limit = 100
-    const errors = []
 
-    for (let rowCount = 90; rowCount < limit; rowCount++) {
+    for (let rowCount = 76; rowCount < limit; rowCount++) {
       const key = String.fromCharCode(rowCount)
       const value = `${rowCount}-${key}`
       const bulk = [{ key, value }]
@@ -277,17 +276,37 @@ describe('map first-leaf', () => {
       for (const block of blocks) {
         await put(block)
       }
-
       mapRoot = root
-      try {
-        await mapRoot.get(key)
-      } catch (e) {
-        errors.push({ key, value, rowCount })
-      }
+      const got = await mapRoot.get(key).catch((e) => e)
+      same(got.result, value, `failed at ${value} w/ ${JSON.stringify(got.result)}`)
     }
-    same(errors.length, 0)
   })
 
+  it('next failing test case two', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    for await (const node of create({ get, compare, list: list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const limit = 100
+
+    for (let rowCount = 77; rowCount < limit; rowCount++) {
+      const key = String.fromCharCode(rowCount)
+      const value = `${rowCount}-${key}`
+      const bulk = [{ key, value }]
+
+      const { blocks, root } = await mapRoot.bulk(bulk)
+      for (const block of blocks) {
+        await put(block)
+      }
+      mapRoot = root
+      const got = await mapRoot.get(key).catch((e) => e)
+      same(got.result, value, `failed at ${value} w/ ${JSON.stringify(got.result)}`)
+    }
+  })
   it('basic numeric string key', async () => {
     const { get, put } = storage()
     let mapRoot
