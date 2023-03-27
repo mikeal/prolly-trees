@@ -123,6 +123,7 @@ async function filterLeftmostInserts (first, bulk, compare) {
 }
 
 async function generateNewLeaves (inserts, opts, { chunker, compare }) {
+  console.log('leaf entry class from inserts', inserts)
   return await Node.from({
     entries: inserts
       .map((insert) => new opts.LeafEntryClass(insert, opts))
@@ -192,7 +193,7 @@ async function processRoot (that, results, bulk, nodeOptions) {
       // return block
     }))
     console.log('newLeaves', newLeaves.length)
-    console.log('newBranches', newBranches.map(e => e.entryList.entries.map(e => [e.key, e.address])))
+    console.log('newBranches', JSON.stringify(newBranches.map(e => e.entryList.entries.map(e => [e.key, e.address.toString()]))))
     const newNodes = [...newLeaves, ...newBranches, root]
     // logNodes(newNodes)
 
@@ -354,6 +355,7 @@ class Node {
         if (deletes.has(skey)) {
           deletes.set(skey, i)
         } else {
+          console.log('leaf entry changed', changes[skey])
           entries[i] = new LeafEntryClass(changes[skey], opts)
           delete changes[skey]
         }
@@ -364,6 +366,8 @@ class Node {
       }
       // entries is length 1 MapLeafEntry key: '!' value: '33-!'
       const appends = Object.values(changes).map(obj => {
+        console.log('leaf entry new', obj)
+
         return new LeafEntryClass(obj, opts)
       })
       // appends is length 1 MapLeafEntry key: '"' value: '33-"'
@@ -401,14 +405,15 @@ class Node {
           console.log('Current entry:', distance, entry.key, await entry.address)
           console.log('Prepend:', JSON.stringify(prepend.entryList.entries.map(e => e.key)))
           const mergeEntries = await this.mergeFirstLeftEntries(entry, prepend, nodeOptions, final, distance)
-
+          console.log('After mergeFirstLeftEntries with mergeEntries:', distance, JSON.stringify(mergeEntries.map(e => [e.key, e.constructor.name])))
           prepend = null
-          const NodeClass = distance === 0 ? LeafClass : BranchClass // always branch
+
+          const NodeClass = !mergeEntries[0].address ? LeafClass : BranchClass
           const _opts = {
             ...nodeOptions,
             entries: mergeEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
             NodeClass,
-            distance: distance
+            distance: distance // TODO: this is wrong
           }
           const nodes = await Node.from(_opts) // this is sending mixed types in
           if (!nodes[nodes.length - 1].closed) {
@@ -439,7 +444,7 @@ class Node {
         // console.log('toEntry', branch.key, await branch.address)
         return new BranchEntryClass(branch, opts)
       }
-      console.log('End of transaction loop with newEntries:', JSON.stringify(newEntries.map(n => ({ cls: n.constructor.name, entries: n.entryList?.entries.map(e => e.key) }))))
+      console.log('End of transaction loop with newEntries:', JSON.stringify(newEntries.map(n => ({ cls: n.constructor.name, entries: n.entryList?.entries.map(e => [e.key, e.value]) }))))
       // we need this equivalent of this logic for
       entries = await Promise.all(newEntries.map(toEntry))
       const _opts = { ...nodeOptions, entries, NodeClass: BranchClass, distance }
@@ -463,7 +468,7 @@ class Node {
       const oldFront = await this.getNode(await es.shift().address)
       console.log('recursed mergeLeftEntries', distance, mergeLeftEntries.map(e => [e.key, e.constructor.name]))
 
-      console.log('oldFront', oldFront.entryList.entries.map(e => [e.key, e.constructor.name, e.address]))
+      console.log('oldFront entries', oldFront.entryList.entries.map(e => [e.key, e.constructor.name, e.address]))
 
       if (!oldFront.entryList.entries[0].address) {
         // old front entry list is leaf entries
@@ -489,8 +494,6 @@ class Node {
             NodeClass: LeafClass,
             distance
           })
-          // I think I want oldfront entries here too
-
           console.log('mergeLeftNodes', distance, mergeLeftNodes.map(e => [e.key, e.constructor.name]))
           const mergeLeftBranchEntries = await Promise.all(mergeLeftNodes.map(async l => {
             final.blocks.push(await l.encode())
@@ -507,9 +510,7 @@ class Node {
             final.blocks.push(await l.encode())
             this.cache.set(l)
           }))
-          console.log('newFirstNodes', newFirstNodes)
-
-          console.log('mergeLeftEntries', distance, mergeLeftEntries.map(e => [e.key, e.constructor.name]))
+          console.log('newFirstNodes', newFirstNodes.map(n => [n.constructor.name, n.entryList.entries.map(e => [e.key])]))
 
           const newBranchEntries = await Promise.all(newFirstNodes.map(async (l) => {
             console.log('newFirstNodes', l.key, await l.address, l.constructor.name)
@@ -657,7 +658,11 @@ class IPLDBranch extends IPLDNode {
 
 class IPLDLeaf extends IPLDNode {
   async encodeNode () {
-    const list = await Promise.all(this.entryList.entries.map(async entry => await entry.encodeNode()))
+    const list = await Promise.all(this.entryList.entries.map(async entry => {
+      // if (!entry.value && entry.address) throw new Error('value required for MapLeaf entries')
+      return await entry.encodeNode()
+    }))
+    console.log('IPLDNode encodeNode', this.distance, this.constructor.name, list)
     return { leaf: list, closed: this.closed }
   }
 
