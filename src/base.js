@@ -416,6 +416,7 @@ class Node {
     if (es[0].constructor.name === prepend.entryList.entries[0].constructor.name) {
       return prepend.entryList.entries.concat(entry.entryList.entries)
     } else {
+      /* c8 ignore next */
       if (!es[0].address) throw new Error('unreachable existing leaf')
       const mergeLeftEntries = await this.mergeFirstLeftEntries(es.shift(), prepend, nodeOptions, final, distance - 1)
       // are both these shifts legit?
@@ -423,6 +424,7 @@ class Node {
       if (!oldFront.entryList.entries[0].address) {
         return mergeLeftEntries.concat(oldFront.entryList.entries)
       } else {
+        /* c8 ignore next */
         if (mergeLeftEntries[0].address) throw new Error('unreachable merge leaf')
         const mergeLeftNodes = await Node.from({
           ...nodeOptions,
@@ -513,9 +515,8 @@ class Node {
   }
 
   static async from ({ entries, chunker, NodeClass, distance, opts }) {
-    if (!entries.every(entry => entry.constructor.name === entries[0].constructor.name)) {
-      throw new Error('all entries must be of the same type')
-    }
+    /* c8 ignore next */
+    if (!entries.every(entry => entry.constructor.name === entries[0].constructor.name)) throw new Error('all entries must be of the same type')
     const parts = []
     let chunk = []
     for (const entry of entries) {
@@ -564,6 +565,7 @@ class IPLDBranch extends IPLDNode {
   async encodeNode () {
     const { entries } = this.entryList
     const mapper = async entry => {
+      /* c8 ignore next */
       if (!entry.address) throw new Error('entry.address required')
       return [entry.key, await entry.address]
     }
