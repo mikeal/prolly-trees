@@ -584,6 +584,63 @@ describe('map', () => {
       }
     }
   })
+  it('inner node splitting', async () => {
+    const { get, put } = storage()
+
+    let mapRoot
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const initialKeys = ['a', 'c', 'e', 'g', 'i', 'k', 'm', 'o', 'q', 's']
+    const bulkInsert = initialKeys.map((key) => ({ key, value: key.charCodeAt(0) }))
+
+    const { blocks, root } = await mapRoot.bulk(bulkInsert)
+    await Promise.all(blocks.map((block) => put(block)))
+    mapRoot = root
+
+    for (const key of initialKeys) {
+      const { result } = await mapRoot.get(key).catch((e) => {
+        throw Error("Couldn't find key: " + key)
+      })
+      same(result, key.charCodeAt(0))
+    }
+
+    const additionalKeys = ['b', 'd', 'f', 'h', 'j', 'l', 'n', 'p', 'r']
+    const bulkInsert2 = additionalKeys.map((key) => ({ key, value: key.charCodeAt(0) }))
+
+    const { blocks: blocks2, root: root2 } = await mapRoot.bulk(bulkInsert2)
+    await Promise.all(blocks2.map((block) => put(block)))
+    mapRoot = root2
+
+    const allKeys = initialKeys.concat(additionalKeys).sort((a, b) => a.localeCompare(b))
+
+    for (const key of allKeys) {
+      const { result } = await mapRoot.get(key).catch((e) => {
+        throw Error("Couldn't find key: " + key)
+      })
+      same(result, key.charCodeAt(0))
+    }
+
+    // Add more keys to trigger inner node splitting
+    const extraKeys = ['t', 'u', 'v', 'w', 'x', 'y', 'z']
+    const bulkInsert3 = extraKeys.map((key) => ({ key, value: key.charCodeAt(0) }))
+
+    const { blocks: blocks3, root: root3 } = await mapRoot.bulk(bulkInsert3)
+    await Promise.all(blocks3.map((block) => put(block)))
+    mapRoot = root3
+
+    const finalKeys = allKeys.concat(extraKeys).sort((a, b) => a.localeCompare(b))
+
+    for (const key of finalKeys) {
+      const { result } = await mapRoot.get(key).catch((e) => {
+        throw Error("Couldn't find key: " + key)
+      })
+      same(result, key.charCodeAt(0))
+    }
+  })
+
   it.skip('passing, slow. deterministic fuzzer', async () => {
     const { get, put } = storage()
     let mapRoot
