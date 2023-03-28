@@ -420,7 +420,9 @@ class Node {
       if (!es[0].address) throw new Error('unreachable existing leaf')
       const mergeLeftEntries = await this.mergeFirstLeftEntries(es.shift(), prepend, nodeOptions, final, distance - 1)
       // are both these shifts legit?
-      const oldFront = await this.getNode(await es.shift().address)
+      const esf = es.shift()
+      if (!esf) return mergeLeftEntries
+      const oldFront = await this.getNode(await esf.address)
       if (!oldFront.entryList.entries[0].address) {
         return mergeLeftEntries.concat(oldFront.entryList.entries)
       } else {
