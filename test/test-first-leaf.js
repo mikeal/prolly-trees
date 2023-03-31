@@ -544,7 +544,10 @@ describe('map first-leaf', () => {
     const bulk = [
       { key: 'B', value: 2 },
       { key: 'C', value: 3 },
-      { key: 'D', value: 4 }
+      { key: 'D', value: 4 },
+      { key: 'F', value: 6 },
+      { key: 'G', value: 7 },
+      { key: 'H', value: 8 }
     ]
     const { blocks, root } = await mapRoot.bulk(bulk, { ...opts, chunker: alwaysSplitChunker })
     for (const block of blocks) {
@@ -553,15 +556,7 @@ describe('map first-leaf', () => {
 
     mapRoot = root
 
-    // Verify the new keys
-    const { result: resultB } = await mapRoot.get('B')
-    same(resultB, 2)
-    const { result: resultC } = await mapRoot.get('C')
-    same(resultC, 3)
-    const { result: resultD } = await mapRoot.get('D')
-    same(resultD, 4)
-
-    // Insert a new key that triggers the uncovered branch in mergeFirstLeftEntries
+    // Insert a new key that should trigger the uncovered branch in mergeFirstLeftEntries
     const newBulk = [{ key: 'E', value: 5 }]
     const newOpts = {
       ...opts,
@@ -590,6 +585,85 @@ describe('map first-leaf', () => {
     same(updatedResultC, 3)
     const { result: updatedResultD } = await mapRoot.get('D')
     same(updatedResultD, 4)
+    const { result: updatedResultF } = await mapRoot.get('F')
+    same(updatedResultF, 6)
+    const { result: updatedResultG } = await mapRoot.get('G')
+    same(updatedResultG, 7)
+    const { result: updatedResultH } = await mapRoot.get('H')
+    same(updatedResultH, 8)
+  })
+
+  it('test case to trigger decreasing logic branch in getAllEntries', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: '2000', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const size = 5
+    // Insert new keys with decreasing order
+    for (let index = 0; index < size; index++) {
+      const key = (2000 - index).toString()
+      const bulk = [{ key, value: index }]
+      const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+      for (const block of blocks) {
+        await put(block)
+      }
+      const got = await root.get(key)
+      same(got.result, index)
+      mapRoot = root
+    }
+
+    for (let index = 0; index < size; index++) {
+      const key = (2000 - index).toString()
+      const got = await mapRoot.get(key).catch((err) => ({ err }))
+      // console.log('got', index, got)
+      same(undefined, got.err)
+      same(got.result, index)
+    }
+
+    // Get all entries and verify the count
+    const { result: allEntries } = await mapRoot.getAllEntries()
+    same(allEntries.length, size + 1, 'Unexpected number of entries retrieved')
+  })
+
+  it('test case to trigger increasing logic branch in getAllEntries', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: '2000', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+    const size = 5
+    // Insert new keys with increasing order
+    for (let index = 0; index < size; index++) {
+      const key = (1000 + index).toString()
+      const bulk = [{ key, value: index }]
+      const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+      for (const block of blocks) {
+        await put(block)
+      }
+      const got = await root.get(key)
+      same(got.result, index)
+      mapRoot = root
+    }
+
+    for (let index = 0; index < size; index++) {
+      const key = (1000 + index).toString()
+      const got = await mapRoot.get(key)
+      same(got.result, index)
+    }
+
+    // Get all entries and verify the count
+    const { result: allEntries } = await mapRoot.getAllEntries()
+    same(allEntries.length, size + 1, 'Unexpected number of entries retrieved')
   })
 
   it('inserts with custom chunker that triggers uncovered branches', async () => {

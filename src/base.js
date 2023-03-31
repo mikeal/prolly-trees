@@ -402,7 +402,7 @@ class Node {
         this.cache.set(branch)
         return new BranchEntryClass(branch, opts)
       }
-      entries = await Promise.all(newEntries.map(toEntry))
+      entries = await Promise.all(newEntries.map(toEntry)) // .sort(({ key: a }, { key: b }) => opts.compare(a, b))
       const _opts = { ...nodeOptions, entries, NodeClass: BranchClass, distance }
       return { nodes: await Node.from(_opts), ...final, distance }
     }
@@ -537,6 +537,7 @@ class Node {
     if (chunk.length) {
       parts.push(new EntryList({ entries: chunk, closed: false }))
     }
+    console.log('node.from', JSON.stringify(parts.map(p => p.entries.map(e => [e.constructor.name, e.key]))))
     return parts.map(entryList => new NodeClass({ entryList, chunker, distance, ...opts }))
   }
 }
