@@ -162,7 +162,7 @@ async function processRoot (that, results, bulk, nodeOptions) {
     results.blocks.push((await root.encode()))
     that.cache.set(root)
     const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => opts.compare(a, b))
-    const newBranches = await Node.from({
+    let newBranches = await Node.from({
       ...nodeOptions,
       entries: newBranchEntries,
       chunker: that.chunker,
@@ -174,8 +174,33 @@ async function processRoot (that, results, bulk, nodeOptions) {
       that.cache.set(m)
       results.blocks.push(block)
     }))
+    let allBranches = [...newBranches]
+    while (newBranches.length > 1) {
+      console.log('making root branch', newBranches.length)
+      const newBranchEntries = await Promise.all(newBranches.map(async l => {
+        // final.blocks.push(await l.encode())
+        // this.cache.set(l)
+        return new opts.BranchEntryClass({ key: l.key, address: await l.address }, opts)
+      }))
+
+      newBranches = await Node.from({
+        ...nodeOptions,
+        entries: newBranchEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
+        chunker: that.chunker,
+        NodeClass: opts.BranchClass,
+        distance: distance + 1
+      })
+      await Promise.all(newBranches.map(async (m) => {
+        const block = await m.encode()
+        that.cache.set(m)
+        results.blocks.push(block)
+      }))
+      allBranches = [...allBranches, ...newBranches]
+      // throw new Error('Expected 1 branch, got ' + newBranches.length)
+    }
+
     results.root = newBranches[0]
-    results.nodes = [...newLeaves, ...newBranches, root]
+    results.nodes = [...newLeaves, ...allBranches, root]
   }
 }
 
@@ -249,6 +274,7 @@ class Node {
     }
 
     const visit = async function * (node, parentId, cids) {
+      // console.log('visiting', node.constructor.name, parentId, node.entryList.entries.map((e) => e.key.toString()))
       const nodeId = (await node.address).toString()
       if (!cids.has(nodeId)) {
         cids.add(nodeId)
@@ -259,7 +285,11 @@ class Node {
 
         for (const entry of node.entryList.entries) {
           if (entry.address) {
-            const childNode = await node.getNode(await entry.address)
+            const entryId = (await entry.address).toString()
+            if (entryId === nodeId) {
+              throw new Error('Self reference')
+            }
+            const childNode = await node.getNode(entryId)
             yield * await visit(childNode, nodeId, cids)
           }
         }
@@ -269,9 +299,9 @@ class Node {
     yield 'digraph tree {'
     const rootCid = (await this.address).toString()
     const rootNode = await this.getNode(rootCid)
-    yield `  node [shape=ellipse fontname="Courier"]; ${rootCid};`
+    yield '  node [shape=ellipse fontname="Courier"]; root;'
 
-    for await (const line of visit(rootNode, rootCid, cids)) {
+    for await (const line of visit(rootNode, 'root', cids)) {
       yield line
     }
 

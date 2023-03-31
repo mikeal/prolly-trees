@@ -644,6 +644,7 @@ describe('map first-leaf', () => {
       const bulk = [{ key, value: index + 1 }]
       console.log('put key', index + 1, key)
       const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+      await put(await root.block)
       for (const block of blocks) {
         await put(block)
       }
@@ -672,7 +673,7 @@ describe('map first-leaf', () => {
     same(allEntries.length, size + 1, 'Unexpected number of entries retrieved')
   })
 
-  it('test case to loop decreasing logic branch in getAllEntries', async () => {
+  it('test case to loop decreasing logic branch in getAllEntries og', async () => {
     const { get, put } = storage()
     let mapRoot
 
@@ -690,10 +691,15 @@ describe('map first-leaf', () => {
       const bulk = [{ key, value: index }]
       console.log('put key', index, key)
       const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+      await put(await root.block)
       console.log('Tree after bulk operation:', JSON.stringify([root.key, root.constructor.name], null))
       for (const block of blocks) {
         await put(block)
       }
+      for await (const line of root.vis()) {
+        console.log(line)
+      }
+
       const got = await root.get(key)
       same(got.result, index)
       mapRoot = root
