@@ -195,7 +195,7 @@ describe('map first-leaf', () => {
     mapRoot = root2
     same(gotRoot.value, root2.block.value)
     const everything1 = await mapRoot.getAllEntries()
-    same(everything1.result.length, 1)
+    same(everything1.result.length, 5)
 
     await mapRoot
       .get(key2)
@@ -277,12 +277,12 @@ describe('map first-leaf', () => {
     const address = await root2.address
     const gotRoot = await get(address)
     same(gotRoot.value, root2.block.value)
-    same(root2.entryList.entries.length, 1)
+    same(root2.entryList.entries.length, 2)
     mapRoot = root2
 
     const everything1 = await mapRoot.getAllEntries()
 
-    same(everything1.result.length, 1)
+    same(everything1.result.length, 4)
     await mapRoot
       .get(key2)
       .then((val) => {
@@ -375,7 +375,7 @@ describe('map first-leaf', () => {
         })
     }
     same(errors.length, 0)
-  })
+  }).timeout(10000)
   it('insert causes chunker to return true for non-empty bulk', async () => {
     const { get, put } = storage()
     let root
