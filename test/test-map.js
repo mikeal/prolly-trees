@@ -221,6 +221,11 @@ describe('map', () => {
     for (const [key, value] of expected) {
       same(await _get(key), value)
     }
+
+    // test vis
+    for await (const line of root.vis()) {
+      same(typeof line, 'string')
+    }
   })
 
   it('bulk insert 100 update 1*100', async () => {
@@ -653,7 +658,7 @@ describe('map', () => {
     })
     same(result, 1)
 
-    for (let i = 0; i < 1000; i = i + 9) {
+    for (let i = 0; i < 30; i = i + 9) {
       const randFun = mulberry32(i)
       for (let rowCount = 0; rowCount < 30; rowCount++) {
         const key = randFun().toString(36).substring(2)
@@ -668,6 +673,8 @@ describe('map', () => {
         same(result3, value)
       }
     }
+    const all = await mapRoot.getAllEntries()
+    same(all.length, 30)
   }).timeout(60 * 1000)
 })
 

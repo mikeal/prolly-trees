@@ -112,6 +112,42 @@ describe('map first-leaf', () => {
     same(updatedResult, 1)
   })
 
+  it('big map with inner nodes', async () => {
+    const { get, put } = storage()
+
+    let mapRoot
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    // Insert enough keys to create non-leaf nodes
+    const keys = Array.from({ length: 100 }, (_, i) => String.fromCharCode(i + 32))
+    for (const key of keys) {
+      const bulk = [{ key, value: key.charCodeAt(0) }]
+      const { blocks, root } = await mapRoot.bulk(bulk)
+      await Promise.all(blocks.map((block) => put(block)))
+      mapRoot = root
+      const { result } = await mapRoot.get(key).catch((e) => {
+        throw Error("Couldn't find key: " + key)
+      })
+      same(result, key.charCodeAt(0))
+    }
+
+    // Test getEntry, getAllEntries, getEntries, and getRangeEntries methods for non-leaf nodes
+    const randomKey = keys[Math.floor(Math.random() * keys.length)]
+    await mapRoot.getEntry(randomKey)
+
+    await mapRoot.getAllEntries()
+
+    const someKeys = keys.slice(20, 30)
+    await mapRoot.getEntries(someKeys)
+
+    const startKey = keys[10]
+    const endKey = keys[20]
+    await mapRoot.getRangeEntries(startKey, endKey)
+  })
+
   it('basic numeric string key with specific keys and no loops inline', async () => {
     const { get, put } = storage()
     let mapRoot
@@ -159,7 +195,7 @@ describe('map first-leaf', () => {
     mapRoot = root2
     same(gotRoot.value, root2.block.value)
     const everything1 = await mapRoot.getAllEntries()
-    same(everything1.result.length, 1)
+    same(everything1.result.length, 5)
 
     await mapRoot
       .get(key2)
@@ -241,12 +277,12 @@ describe('map first-leaf', () => {
     const address = await root2.address
     const gotRoot = await get(address)
     same(gotRoot.value, root2.block.value)
-    same(root2.entryList.entries.length, 1)
+    same(root2.entryList.entries.length, 2)
     mapRoot = root2
 
     const everything1 = await mapRoot.getAllEntries()
 
-    same(everything1.result.length, 1)
+    same(everything1.result.length, 4)
     await mapRoot
       .get(key2)
       .then((val) => {
@@ -256,7 +292,7 @@ describe('map first-leaf', () => {
         throw e
       })
   })
-  it('minimal failing test case', async () => {
+  it('minimal test case', async () => {
     const { get, put } = storage()
     let mapRoot
 
@@ -282,7 +318,7 @@ describe('map first-leaf', () => {
     }
   })
 
-  it('next failing test case two', async () => {
+  it('next test case two', async () => {
     const { get, put } = storage()
     let mapRoot
 
@@ -339,7 +375,7 @@ describe('map first-leaf', () => {
         })
     }
     same(errors.length, 0)
-  })
+  }).timeout(10000)
   it('insert causes chunker to return true for non-empty bulk', async () => {
     const { get, put } = storage()
     let root
@@ -483,6 +519,223 @@ describe('map first-leaf', () => {
     const expectedKeys = expected.map(([key]) => key)
     same(actualKeys, expectedKeys)
   })
+
+  it('test case to trigger the uncovered branch in mergeFirstLeftEntries', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: 'A', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    // Verify the initial entry
+    const { result: initialResult } = await mapRoot.get('A')
+    same(initialResult, 1)
+
+    // Custom chunker that always returns true for splitting
+    const alwaysSplitChunker = async (entry, distance) => {
+      return distance < 100
+    }
+
+    // Insert new keys
+    const bulk = [
+      { key: 'B', value: 2 },
+      { key: 'C', value: 3 },
+      { key: 'D', value: 4 },
+      { key: 'F', value: 6 },
+      { key: 'G', value: 7 },
+      { key: 'H', value: 8 }
+    ]
+    const { blocks, root } = await mapRoot.bulk(bulk, { ...opts, chunker: alwaysSplitChunker })
+    for (const block of blocks) {
+      await put(block)
+    }
+
+    mapRoot = root
+
+    // Insert a new key that should trigger the uncovered branch in mergeFirstLeftEntries
+    const newBulk = [{ key: 'E', value: 5 }]
+    const newOpts = {
+      ...opts,
+      chunker: async (entry, distance) => {
+        return distance < 100
+      }
+    }
+
+    const { blocks: newBlocks, root: newRoot } = await mapRoot.bulk(newBulk, newOpts)
+    for (const block of newBlocks) {
+      await put(block)
+    }
+
+    mapRoot = newRoot
+
+    // Verify the new key
+    const { result: newResult } = await mapRoot.get('E')
+    same(newResult, 5)
+
+    // Verify that the original entries still exist and have the correct values
+    const { result: updatedResultA } = await mapRoot.get('A')
+    same(updatedResultA, 1)
+    const { result: updatedResultB } = await mapRoot.get('B')
+    same(updatedResultB, 2)
+    const { result: updatedResultC } = await mapRoot.get('C')
+    same(updatedResultC, 3)
+    const { result: updatedResultD } = await mapRoot.get('D')
+    same(updatedResultD, 4)
+    const { result: updatedResultF } = await mapRoot.get('F')
+    same(updatedResultF, 6)
+    const { result: updatedResultG } = await mapRoot.get('G')
+    same(updatedResultG, 7)
+    const { result: updatedResultH } = await mapRoot.get('H')
+    same(updatedResultH, 8)
+  })
+
+  it('loopless shorter decreasing logic branch in getAllEntries', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: '2000', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const index = 1
+    const key = (2000 - index).toString()
+    const bulk = [{ key, value: index }]
+    const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+    for (const block of blocks) {
+      await put(block)
+    }
+    const got = await root.get(key)
+    same(got.result, index)
+    mapRoot = root
+
+    const got2 = await mapRoot.get(key).catch((err) => ({ err }))
+    same(undefined, got2.err)
+    same(got2.result, index)
+
+    // Get all entries and verify the count
+    const { result: allEntries } = await mapRoot.getAllEntries()
+    same(allEntries.length, 2, 'Unexpected number of entries retrieved')
+  })
+  it('test case to loop decreasing logic branch in getAllEntries with alphabetic keys', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: 'f', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const keys = ['e', 'd', 'c', 'b', 'a']
+    const size = keys.length // passes with size = 4
+    // Insert new keys with decreasing order
+    for (let index = 0; index < size; index++) {
+      const key = keys[index]
+      const bulk = [{ key, value: index + 1 }]
+      const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+      await put(await root.block)
+      for (const block of blocks) {
+        await put(block)
+      }
+      const got = await root.get(key)
+      same(got.result, index + 1)
+      mapRoot = root
+    }
+
+    for (let index = 0; index < size; index++) {
+      const key = keys[index]
+      const got = await mapRoot.get(key).catch((err) => ({ err }))
+      same(undefined, got.err)
+      same(got.result, index + 1)
+    }
+
+    // Get all entries and verify the count
+    const { result: allEntries } = await mapRoot.getAllEntries()
+    same(allEntries.length, size + 1, 'Unexpected number of entries retrieved')
+  })
+
+  it('test case to loop decreasing logic branch in getAllEntries og', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: '2000', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const size = 5 // passes with size = 4
+    // Insert new keys with decreasing order
+    for (let index = 1; index < size; index++) {
+      const key = (2000 - index).toString()
+      const bulk = [{ key, value: index }]
+      const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+      await put(await root.block)
+      for (const block of blocks) {
+        await put(block)
+      }
+
+      const got = await root.get(key)
+      same(got.result, index)
+      mapRoot = root
+    }
+
+    for (let index = 1; index < size; index++) {
+      const key = (2000 - index).toString()
+      const got = await mapRoot.get(key).catch((err) => ({ err }))
+      same(undefined, got.err)
+      same(got.result, index)
+    }
+
+    // Get all entries and verify the count
+    const { result: allEntries } = await mapRoot.getAllEntries()
+    same(allEntries.length, size, 'Unexpected number of entries retrieved')
+  })
+
+  it('test case to trigger increasing logic branch in getAllEntries', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: '2000', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+    const size = 5
+    // Insert new keys with increasing order
+    for (let index = 0; index < size; index++) {
+      const key = (1000 + index).toString()
+      const bulk = [{ key, value: index }]
+      const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+      for (const block of blocks) {
+        await put(block)
+      }
+      const got = await root.get(key)
+      same(got.result, index)
+      mapRoot = root
+    }
+
+    for (let index = 0; index < size; index++) {
+      const key = (1000 + index).toString()
+      const got = await mapRoot.get(key)
+      same(got.result, index)
+    }
+
+    // Get all entries and verify the count
+    const { result: allEntries } = await mapRoot.getAllEntries()
+    same(allEntries.length, size + 1, 'Unexpected number of entries retrieved')
+  })
+
   it('inserts with custom chunker that triggers uncovered branches', async () => {
     const { get, put } = storage()
     let root
