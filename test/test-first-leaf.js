@@ -327,7 +327,7 @@ describe('map first-leaf', () => {
       mapRoot = node
     }
 
-    const limit = 100
+    const limit = 200
 
     for (let rowCount = 77; rowCount < limit; rowCount++) {
       const key = String.fromCharCode(rowCount)
@@ -673,7 +673,7 @@ describe('map first-leaf', () => {
       mapRoot = node
     }
 
-    const size = 5 // passes with size = 4
+    const size = 50 // passes with size = 4
     // Insert new keys with decreasing order
     for (let index = 1; index < size; index++) {
       const key = (2000 - index).toString()
@@ -711,7 +711,7 @@ describe('map first-leaf', () => {
       await put(await node.block)
       mapRoot = node
     }
-    const size = 5
+    const size = 50
     // Insert new keys with increasing order
     for (let index = 0; index < size; index++) {
       const key = (1000 + index).toString()

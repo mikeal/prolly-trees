@@ -576,7 +576,7 @@ describe('map', () => {
 
     const prefixes = ['b', 'A', '0', '']
     for (const prefix of prefixes) {
-      for (let index = 10; index > 0; index--) {
+      for (let index = 30; index > 0; index--) {
         const key = prefix + index.toString()
         const bulk = [{ key, value: index }]
         const { blocks, root } = await mapRoot.bulk(bulk)
