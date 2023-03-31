@@ -523,22 +523,28 @@ class Node {
       const mergeLeftEntries = await this.mergeFirstLeftEntries(leftEntry, prepend, nodeOptions, final, distance - 1)
       const esf = es.shift()
       if (!esf) {
-        console.log('unhandled case', entry, prepend, mergeLeftEntries)
-        throw new Error('unhandled case no esf')
-        // return mergeLeftEntries
+        return mergeLeftEntries
       }
       const oldFront = await this.getNode(await esf.address)
       if (!oldFront.entryList.entries[0].address) {
         return mergeLeftEntries.concat(oldFront.entryList.entries)
       } else {
-        /* c8 ignore next */
-        if (mergeLeftEntries[0].address) throw new Error('unreachable merge leaf')
-        const mergeLeftNodes = await Node.from({
-          ...nodeOptions,
-          entries: mergeLeftEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
-          NodeClass: LeafClass,
-          distance
-        })
+        let mergeLeftNodes
+        if (mergeLeftEntries[0].address) {
+          mergeLeftNodes = await Node.from({
+            ...nodeOptions,
+            entries: mergeLeftEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
+            NodeClass: BranchClass,
+            distance
+          })
+        } else {
+          mergeLeftNodes = await Node.from({
+            ...nodeOptions,
+            entries: mergeLeftEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
+            NodeClass: LeafClass,
+            distance
+          })
+        }
         const mergeLeftBranchEntries = await Promise.all(mergeLeftNodes.map(async l => {
           final.blocks.push(await l.encode())
           this.cache.set(l)
