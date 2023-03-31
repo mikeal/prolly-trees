@@ -176,11 +176,9 @@ async function processRoot (that, results, bulk, nodeOptions) {
     }))
     let allBranches = [...newBranches]
     while (newBranches.length > 1) {
-      const newBranchEntries = await Promise.all(newBranches.map(async l => {
-        // final.blocks.push(await l.encode())
-        // this.cache.set(l)
-        return new opts.BranchEntryClass({ key: l.key, address: await l.address }, opts)
-      }))
+      const newBranchEntries = await Promise.all(newBranches.map(async l =>
+        new opts.BranchEntryClass({ key: l.key, address: await l.address }, opts)
+      ))
 
       newBranches = await Node.from({
         ...nodeOptions,
