@@ -679,7 +679,7 @@ describe('map first-leaf', () => {
       const key = (2000 - index).toString()
       const bulk = [{ key, value: index }]
       const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
-      await put(await root.block)
+      // await put(await root.block)
       for (const block of blocks) {
         await put(block)
       }

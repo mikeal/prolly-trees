@@ -169,17 +169,11 @@ async function processRoot (that, results, bulk, nodeOptions) {
       NodeClass: opts.BranchClass,
       distance: distance + 1
     })
-    await Promise.all(newBranches.map(async (m) => {
-      const block = await m.encode()
-      that.cache.set(m)
-      results.blocks.push(block)
-    }))
     let allBranches = [...newBranches]
     while (newBranches.length > 1) {
       const newBranchEntries = await Promise.all(newBranches.map(async l =>
         new opts.BranchEntryClass({ key: l.key, address: await l.address }, opts)
       ))
-
       newBranches = await Node.from({
         ...nodeOptions,
         entries: newBranchEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
@@ -187,15 +181,14 @@ async function processRoot (that, results, bulk, nodeOptions) {
         NodeClass: opts.BranchClass,
         distance: distance + 1
       })
-      await Promise.all(newBranches.map(async (m) => {
-        const block = await m.encode()
-        that.cache.set(m)
-        results.blocks.push(block)
-      }))
-      allBranches = [...allBranches, ...newBranches]
-      // throw new Error('Expected 1 branch, got ' + newBranches.length)
-    }
 
+      allBranches = [...allBranches, ...newBranches]
+    }
+    await Promise.all(allBranches.map(async (m) => {
+      const block = await m.encode()
+      that.cache.set(m)
+      results.blocks.push(block)
+    }))
     results.root = newBranches[0]
     results.nodes = [...newLeaves, ...allBranches, root]
   }
@@ -282,19 +275,24 @@ class Node {
         for (const entry of node.entryList.entries) {
           if (entry.address) {
             const entryId = (await entry.address).toString()
-            const childNode = await node.getNode(entryId)
-            yield * await visit(childNode, nodeId, cids)
+            console.log('entryId, nodeId, parentId', entryId, nodeId, parentId)
+            try {
+              const childNode = await node.getNode(entryId)
+              yield * await visit(childNode, nodeId, cids)
+            } catch (err) {
+              yield `  node [shape=ellipse fontname="Courier"]; ${entryId} [label="Error: ${err.message}"];`
+            }
           }
         }
       }
     }
 
     yield 'digraph tree {'
-    const rootCid = (await this.address).toString()
-    const rootNode = await this.getNode(rootCid)
+    // const rootCid = (await this.address).toString()
+    // const rootNode = await this.getNode(rootCid)
     yield '  node [shape=ellipse fontname="Courier"]; root;'
 
-    for await (const line of visit(rootNode, 'root', cids)) {
+    for await (const line of visit(this, 'root', cids)) {
       yield line
     }
 
@@ -508,6 +506,10 @@ class Node {
       if (!esf) {
         return mergeLeftEntries
       }
+      if (!esf.address) {
+        throw new Error('unreachable existing leaf, no esf.address')
+      }
+      console.log('getNode esf', await esf.address)
       const oldFront = await this.getNode(await esf.address)
       if (!oldFront.entryList.entries[0].address) {
         return mergeLeftEntries.concat(oldFront.entryList.entries)
