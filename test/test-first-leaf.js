@@ -608,7 +608,6 @@ describe('map first-leaf', () => {
     const key = (2000 - index).toString()
     const bulk = [{ key, value: index }]
     const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
-    console.log('Tree after bulk operation:', JSON.stringify([root.key, root.constructor.name], null))
     for (const block of blocks) {
       await put(block)
     }
@@ -622,7 +621,6 @@ describe('map first-leaf', () => {
 
     // Get all entries and verify the count
     const { result: allEntries } = await mapRoot.getAllEntries()
-    console.log('allEntries', JSON.stringify(allEntries.map((entry) => [entry.constructor.name, entry.key])))
     same(allEntries.length, 2, 'Unexpected number of entries retrieved')
   })
   it('test case to loop decreasing logic branch in getAllEntries with alphabetic keys', async () => {
@@ -642,17 +640,11 @@ describe('map first-leaf', () => {
     for (let index = 0; index < size; index++) {
       const key = keys[index]
       const bulk = [{ key, value: index + 1 }]
-      console.log('put key', index + 1, key)
       const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
       await put(await root.block)
       for (const block of blocks) {
         await put(block)
       }
-      console.log('Tree after bulk operation:', JSON.stringify([root.key, root.constructor.name], null))
-      for await (const line of root.vis()) {
-        console.log(line)
-      }
-      console.log('check key', index + 1, key)
       const got = await root.get(key)
       same(got.result, index + 1)
       mapRoot = root
@@ -660,16 +652,13 @@ describe('map first-leaf', () => {
 
     for (let index = 0; index < size; index++) {
       const key = keys[index]
-      console.log('get', index + 1, key)
       const got = await mapRoot.get(key).catch((err) => ({ err }))
-      console.log('got', index + 1, got)
       same(undefined, got.err)
       same(got.result, index + 1)
     }
 
     // Get all entries and verify the count
     const { result: allEntries } = await mapRoot.getAllEntries()
-    console.log('allEntries', JSON.stringify(allEntries.map((entry) => [entry.constructor.name, entry.key])))
     same(allEntries.length, size + 1, 'Unexpected number of entries retrieved')
   })
 
@@ -689,15 +678,10 @@ describe('map first-leaf', () => {
     for (let index = 1; index < size; index++) {
       const key = (2000 - index).toString()
       const bulk = [{ key, value: index }]
-      console.log('put key', index, key)
       const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
       await put(await root.block)
-      console.log('Tree after bulk operation:', JSON.stringify([root.key, root.constructor.name], null))
       for (const block of blocks) {
         await put(block)
-      }
-      for await (const line of root.vis()) {
-        console.log(line)
       }
 
       const got = await root.get(key)
@@ -707,16 +691,13 @@ describe('map first-leaf', () => {
 
     for (let index = 1; index < size; index++) {
       const key = (2000 - index).toString()
-      console.log('get', index, key)
       const got = await mapRoot.get(key).catch((err) => ({ err }))
-      console.log('got', index, got)
       same(undefined, got.err)
       same(got.result, index)
     }
 
     // Get all entries and verify the count
     const { result: allEntries } = await mapRoot.getAllEntries()
-    console.log('allEntries', JSON.stringify(allEntries.map((entry) => [entry.constructor.name, entry.key])))
     same(allEntries.length, size, 'Unexpected number of entries retrieved')
   })
 

@@ -221,8 +221,10 @@ describe('map', () => {
     for (const [key, value] of expected) {
       same(await _get(key), value)
     }
+
+    // test vis
     for await (const line of root.vis()) {
-      console.log(line)
+      same(typeof line, 'string')
     }
   })
 
@@ -671,11 +673,8 @@ describe('map', () => {
         same(result3, value)
       }
     }
-    for await (const line of mapRoot.vis()) {
-      console.log(line)
-    }
     const all = await mapRoot.getAllEntries()
-    console.log('all', all.result.map((e) => [e.key, e.value]))
+    same(all.length, 30)
   }).timeout(60 * 1000)
 })
 

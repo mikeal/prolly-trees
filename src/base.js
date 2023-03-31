@@ -176,7 +176,6 @@ async function processRoot (that, results, bulk, nodeOptions) {
     }))
     let allBranches = [...newBranches]
     while (newBranches.length > 1) {
-      console.log('making root branch', newBranches.length)
       const newBranchEntries = await Promise.all(newBranches.map(async l => {
         // final.blocks.push(await l.encode())
         // this.cache.set(l)
@@ -274,7 +273,6 @@ class Node {
     }
 
     const visit = async function * (node, parentId, cids) {
-      // console.log('visiting', node.constructor.name, parentId, node.entryList.entries.map((e) => e.key.toString()))
       const nodeId = (await node.address).toString()
       if (!cids.has(nodeId)) {
         cids.add(nodeId)
@@ -286,9 +284,6 @@ class Node {
         for (const entry of node.entryList.entries) {
           if (entry.address) {
             const entryId = (await entry.address).toString()
-            if (entryId === nodeId) {
-              throw new Error('Self reference')
-            }
             const childNode = await node.getNode(entryId)
             yield * await visit(childNode, nodeId, cids)
           }
@@ -386,8 +381,6 @@ class Node {
   }
 
   async transactionLeaf (bulk, opts, nodeOptions, results) {
-    console.log('Executing transactionLeaf', JSON.stringify(bulk))
-
     const { LeafClass, LeafEntryClass } = opts
     const previous = []
     let entries = []
@@ -420,9 +413,7 @@ class Node {
     const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
     // TODO: there's a faster version of this that only does one iteration
 
-    console.log('Before sorting:', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
     entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
-    console.log('After sorting:', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
 
     const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
     const nodes = await Node.from(_opts)
@@ -431,7 +422,6 @@ class Node {
   }
 
   async transactionBranch (bulk, opts, nodeOptions, results) {
-    console.log('Executing transactionBranch', JSON.stringify(results))
     const { BranchClass, BranchEntryClass } = opts
     let distance = 0
     for (const [i, [entry, keys]] of results) {
@@ -449,9 +439,7 @@ class Node {
       if (previous.length) final.previous = final.previous.concat(previous)
       if (blocks.length) final.blocks = final.blocks.concat(blocks)
     }
-    console.log('Before flattening:', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
     entries = entries.flat()
-    console.log('After flattening:', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
 
     // TODO: rewrite this to use getNode concurrently on merge
     const { newEntries, prepend } = await this.handlePrepend(entries, opts, nodeOptions, final, distance)
@@ -472,7 +460,6 @@ class Node {
   }
 
   async handlePrepend (entries, opts, nodeOptions, final, distance) {
-    console.log('Handling prepend', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
     const { BranchClass, LeafClass } = opts
     let newEntries = []
     let prepend = null
@@ -502,8 +489,6 @@ class Node {
         }
       }
     }
-    console.log('handlePrepend: newEntries:', JSON.stringify(newEntries.map(e => [e.constructor.name, e.key])))
-    console.log('handlePrepend: prepend:', JSON.stringify(prepend && [prepend.constructor.name, prepend.key]))
     return { newEntries, prepend }
   }
 
@@ -642,7 +627,7 @@ class Node {
     if (chunk.length) {
       parts.push(new EntryList({ entries: chunk, closed: false }))
     }
-    console.log('node.from', JSON.stringify(parts.map(p => p.entries.map(e => [e.constructor.name, e.key]))))
+    // console.log('node.from', JSON.stringify(parts.map(p => p.entries.map(e => [e.constructor.name, e.key]))))
     return parts.map(entryList => new NodeClass({ entryList, chunker, distance, ...opts }))
   }
 }
