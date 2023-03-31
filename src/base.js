@@ -238,6 +238,46 @@ class Node {
     }
   }
 
+  async * vis (cids = new Set()) {
+    const renderNodeLabel = async (node) => {
+      const entries = node.entryList.entries.map((e) => `[${e.key},${e.value || ''}]`).join(', ')
+      if (node.isLeaf) {
+        return `Leaf [${entries}]`
+      } else {
+        return `Branch [${entries}]`
+      }
+    }
+
+    const visit = async function * (node, parentId, cids) {
+      const nodeId = (await node.address).toString()
+      if (!cids.has(nodeId)) {
+        cids.add(nodeId)
+
+        const nodeLabel = await renderNodeLabel(node)
+        yield `  node [shape=ellipse fontname="Courier"]; ${nodeId} [label="${nodeLabel}"];`
+        yield `  ${parentId} -> ${nodeId};`
+
+        for (const entry of node.entryList.entries) {
+          if (entry.address) {
+            const childNode = await node.getNode(await entry.address)
+            yield * await visit(childNode, nodeId, cids)
+          }
+        }
+      }
+    }
+
+    yield 'digraph tree {'
+    const rootCid = (await this.address).toString()
+    const rootNode = await this.getNode(rootCid)
+    yield `  node [shape=ellipse fontname="Courier"]; ${rootCid};`
+
+    for await (const line of visit(rootNode, rootCid, cids)) {
+      yield line
+    }
+
+    yield '}'
+  }
+
   async getEntries (keys, sorted = false, cids = new CIDCounter()) {
     const result = await this._getEntries(keys, sorted, cids)
     return { result, cids }
@@ -316,6 +356,8 @@ class Node {
   }
 
   async transactionLeaf (bulk, opts, nodeOptions, results) {
+    console.log('Executing transactionLeaf', JSON.stringify(bulk))
+
     const { LeafClass, LeafEntryClass } = opts
     const previous = []
     let entries = []
@@ -347,7 +389,11 @@ class Node {
     }
     const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
     // TODO: there's a faster version of this that only does one iteration
+
+    console.log('Before sorting:', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
     entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
+    console.log('After sorting:', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
+
     const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
     const nodes = await Node.from(_opts)
     // why is blocks empty?
@@ -355,6 +401,7 @@ class Node {
   }
 
   async transactionBranch (bulk, opts, nodeOptions, results) {
+    console.log('Executing transactionBranch', JSON.stringify(results))
     const { BranchClass, BranchEntryClass } = opts
     let distance = 0
     for (const [i, [entry, keys]] of results) {
@@ -372,7 +419,10 @@ class Node {
       if (previous.length) final.previous = final.previous.concat(previous)
       if (blocks.length) final.blocks = final.blocks.concat(blocks)
     }
+    console.log('Before flattening:', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
     entries = entries.flat()
+    console.log('After flattening:', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
+
     // TODO: rewrite this to use getNode concurrently on merge
     const { newEntries, prepend } = await this.handlePrepend(entries, opts, nodeOptions, final, distance)
     if (prepend) {
@@ -392,6 +442,7 @@ class Node {
   }
 
   async handlePrepend (entries, opts, nodeOptions, final, distance) {
+    console.log('Handling prepend', JSON.stringify(entries.map(e => [e.constructor.name, e.key])))
     const { BranchClass, LeafClass } = opts
     let newEntries = []
     let prepend = null
@@ -421,6 +472,8 @@ class Node {
         }
       }
     }
+    console.log('handlePrepend: newEntries:', JSON.stringify(newEntries.map(e => [e.constructor.name, e.key])))
+    console.log('handlePrepend: prepend:', JSON.stringify(prepend && [prepend.constructor.name, prepend.key]))
     return { newEntries, prepend }
   }
 

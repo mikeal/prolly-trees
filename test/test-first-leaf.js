@@ -593,7 +593,7 @@ describe('map first-leaf', () => {
     same(updatedResultH, 8)
   })
 
-  it('test case to trigger decreasing logic branch in getAllEntries', async () => {
+  it('loopless shorter decreasing logic branch in getAllEntries', async () => {
     const { get, put } = storage()
     let mapRoot
 
@@ -604,12 +604,93 @@ describe('map first-leaf', () => {
       mapRoot = node
     }
 
-    const size = 5
+    const index = 1
+    const key = (2000 - index).toString()
+    const bulk = [{ key, value: index }]
+    const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+    console.log('Tree after bulk operation:', JSON.stringify([root.key, root.constructor.name], null))
+    for (const block of blocks) {
+      await put(block)
+    }
+    const got = await root.get(key)
+    same(got.result, index)
+    mapRoot = root
+
+    const got2 = await mapRoot.get(key).catch((err) => ({ err }))
+    same(undefined, got2.err)
+    same(got2.result, index)
+
+    // Get all entries and verify the count
+    const { result: allEntries } = await mapRoot.getAllEntries()
+    console.log('allEntries', JSON.stringify(allEntries.map((entry) => [entry.constructor.name, entry.key])))
+    same(allEntries.length, 2, 'Unexpected number of entries retrieved')
+  })
+  it('test case to loop decreasing logic branch in getAllEntries with alphabetic keys', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: 'f', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const keys = ['e', 'd', 'c', 'b', 'a']
+    const size = keys.length // passes with size = 4
     // Insert new keys with decreasing order
     for (let index = 0; index < size; index++) {
+      const key = keys[index]
+      const bulk = [{ key, value: index + 1 }]
+      console.log('put key', index + 1, key)
+      const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+      for (const block of blocks) {
+        await put(block)
+      }
+      console.log('Tree after bulk operation:', JSON.stringify([root.key, root.constructor.name], null))
+      for await (const line of root.vis()) {
+        console.log(line)
+      }
+      console.log('check key', index + 1, key)
+      const got = await root.get(key)
+      same(got.result, index + 1)
+      mapRoot = root
+    }
+
+    for (let index = 0; index < size; index++) {
+      const key = keys[index]
+      console.log('get', index + 1, key)
+      const got = await mapRoot.get(key).catch((err) => ({ err }))
+      console.log('got', index + 1, got)
+      same(undefined, got.err)
+      same(got.result, index + 1)
+    }
+
+    // Get all entries and verify the count
+    const { result: allEntries } = await mapRoot.getAllEntries()
+    console.log('allEntries', JSON.stringify(allEntries.map((entry) => [entry.constructor.name, entry.key])))
+    same(allEntries.length, size + 1, 'Unexpected number of entries retrieved')
+  })
+
+  it('test case to loop decreasing logic branch in getAllEntries', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: '2000', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    const size = 5 // passes with size = 4
+    // Insert new keys with decreasing order
+    for (let index = 1; index < size; index++) {
       const key = (2000 - index).toString()
       const bulk = [{ key, value: index }]
+      console.log('put key', index, key)
       const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
+      console.log('Tree after bulk operation:', JSON.stringify([root.key, root.constructor.name], null))
       for (const block of blocks) {
         await put(block)
       }
@@ -618,17 +699,19 @@ describe('map first-leaf', () => {
       mapRoot = root
     }
 
-    for (let index = 0; index < size; index++) {
+    for (let index = 1; index < size; index++) {
       const key = (2000 - index).toString()
+      console.log('get', index, key)
       const got = await mapRoot.get(key).catch((err) => ({ err }))
-      // console.log('got', index, got)
+      console.log('got', index, got)
       same(undefined, got.err)
       same(got.result, index)
     }
 
     // Get all entries and verify the count
     const { result: allEntries } = await mapRoot.getAllEntries()
-    same(allEntries.length, size + 1, 'Unexpected number of entries retrieved')
+    console.log('allEntries', JSON.stringify(allEntries.map((entry) => [entry.constructor.name, entry.key])))
+    same(allEntries.length, size, 'Unexpected number of entries retrieved')
   })
 
   it('test case to trigger increasing logic branch in getAllEntries', async () => {
