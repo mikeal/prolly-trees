@@ -416,12 +416,18 @@ class Node {
     if (es[0].constructor.name === prepend.entryList.entries[0].constructor.name) {
       return prepend.entryList.entries.concat(entry.entryList.entries)
     } else {
+      const leftEntry = es.shift()
       /* c8 ignore next */
-      if (!es[0].address) throw new Error('unreachable existing leaf')
-      const mergeLeftEntries = await this.mergeFirstLeftEntries(es.shift(), prepend, nodeOptions, final, distance - 1)
-      // are both these shifts legit?
+      if (!leftEntry) throw new Error('unreachable no left entry')
+      /* c8 ignore next */
+      if (!leftEntry.address) throw new Error('unreachable existing leaf, no leftEntry.address')
+      const mergeLeftEntries = await this.mergeFirstLeftEntries(leftEntry, prepend, nodeOptions, final, distance - 1)
       const esf = es.shift()
-      if (!esf) return mergeLeftEntries
+      if (!esf) {
+        console.log('unhandled case', entry, prepend, mergeLeftEntries)
+        throw new Error('unhandled case no esf')
+        // return mergeLeftEntries
+      }
       const oldFront = await this.getNode(await esf.address)
       if (!oldFront.entryList.entries[0].address) {
         return mergeLeftEntries.concat(oldFront.entryList.entries)

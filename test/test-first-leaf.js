@@ -112,6 +112,42 @@ describe('map first-leaf', () => {
     same(updatedResult, 1)
   })
 
+  it('big map with inner nodes', async () => {
+    const { get, put } = storage()
+
+    let mapRoot
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    // Insert enough keys to create non-leaf nodes
+    const keys = Array.from({ length: 100 }, (_, i) => String.fromCharCode(i + 32))
+    for (const key of keys) {
+      const bulk = [{ key, value: key.charCodeAt(0) }]
+      const { blocks, root } = await mapRoot.bulk(bulk)
+      await Promise.all(blocks.map((block) => put(block)))
+      mapRoot = root
+      const { result } = await mapRoot.get(key).catch((e) => {
+        throw Error("Couldn't find key: " + key)
+      })
+      same(result, key.charCodeAt(0))
+    }
+
+    // Test getEntry, getAllEntries, getEntries, and getRangeEntries methods for non-leaf nodes
+    const randomKey = keys[Math.floor(Math.random() * keys.length)]
+    await mapRoot.getEntry(randomKey)
+
+    await mapRoot.getAllEntries()
+
+    const someKeys = keys.slice(20, 30)
+    await mapRoot.getEntries(someKeys)
+
+    const startKey = keys[10]
+    const endKey = keys[20]
+    await mapRoot.getRangeEntries(startKey, endKey)
+  })
+
   it('basic numeric string key with specific keys and no loops inline', async () => {
     const { get, put } = storage()
     let mapRoot
@@ -256,7 +292,7 @@ describe('map first-leaf', () => {
         throw e
       })
   })
-  it('minimal failing test case', async () => {
+  it('minimal test case', async () => {
     const { get, put } = storage()
     let mapRoot
 
@@ -282,7 +318,7 @@ describe('map first-leaf', () => {
     }
   })
 
-  it('next failing test case two', async () => {
+  it('next test case two', async () => {
     const { get, put } = storage()
     let mapRoot
 
@@ -483,6 +519,79 @@ describe('map first-leaf', () => {
     const expectedKeys = expected.map(([key]) => key)
     same(actualKeys, expectedKeys)
   })
+
+  it('test case to trigger the uncovered branch in mergeFirstLeftEntries', async () => {
+    const { get, put } = storage()
+    let mapRoot
+
+    // Create the initial map with one entry
+    const initialList = [{ key: 'A', value: 1 }]
+    for await (const node of create({ get, compare, list: initialList, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+
+    // Verify the initial entry
+    const { result: initialResult } = await mapRoot.get('A')
+    same(initialResult, 1)
+
+    // Custom chunker that always returns true for splitting
+    const alwaysSplitChunker = async (entry, distance) => {
+      return distance < 100
+    }
+
+    // Insert new keys
+    const bulk = [
+      { key: 'B', value: 2 },
+      { key: 'C', value: 3 },
+      { key: 'D', value: 4 }
+    ]
+    const { blocks, root } = await mapRoot.bulk(bulk, { ...opts, chunker: alwaysSplitChunker })
+    for (const block of blocks) {
+      await put(block)
+    }
+
+    mapRoot = root
+
+    // Verify the new keys
+    const { result: resultB } = await mapRoot.get('B')
+    same(resultB, 2)
+    const { result: resultC } = await mapRoot.get('C')
+    same(resultC, 3)
+    const { result: resultD } = await mapRoot.get('D')
+    same(resultD, 4)
+
+    // Insert a new key that triggers the uncovered branch in mergeFirstLeftEntries
+    const newBulk = [{ key: 'E', value: 5 }]
+    const newOpts = {
+      ...opts,
+      chunker: async (entry, distance) => {
+        return distance < 100
+      }
+    }
+
+    const { blocks: newBlocks, root: newRoot } = await mapRoot.bulk(newBulk, newOpts)
+    for (const block of newBlocks) {
+      await put(block)
+    }
+
+    mapRoot = newRoot
+
+    // Verify the new key
+    const { result: newResult } = await mapRoot.get('E')
+    same(newResult, 5)
+
+    // Verify that the original entries still exist and have the correct values
+    const { result: updatedResultA } = await mapRoot.get('A')
+    same(updatedResultA, 1)
+    const { result: updatedResultB } = await mapRoot.get('B')
+    same(updatedResultB, 2)
+    const { result: updatedResultC } = await mapRoot.get('C')
+    same(updatedResultC, 3)
+    const { result: updatedResultD } = await mapRoot.get('D')
+    same(updatedResultD, 4)
+  })
+
   it('inserts with custom chunker that triggers uncovered branches', async () => {
     const { get, put } = storage()
     let root
