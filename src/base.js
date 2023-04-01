@@ -438,10 +438,8 @@ class Node {
     entries = entries.flat()
 
     // TODO: rewrite this to use getNode concurrently on merge
-    const { newEntries, prepend } = await this.handlePrepend(entries, opts, nodeOptions, final, distance)
-    if (prepend) {
-      newEntries.push(prepend)
-    }
+    const newEntries = await this.handlePrepend(entries, opts, nodeOptions, final, distance)
+
     distance++
     const toEntry = async branch => {
       if (branch.isEntry) return branch
@@ -485,7 +483,10 @@ class Node {
         }
       }
     }
-    return { newEntries, prepend }
+    if (prepend) {
+      newEntries.push(prepend)
+    }
+    return newEntries
   }
 
   async mergeFirstLeftEntries (entry, prepend, nodeOptions, final, distance) {
