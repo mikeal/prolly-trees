@@ -151,6 +151,10 @@ async function generateBranchEntries (that, newLeaves, results, opts) {
 
 async function processRoot (that, results, bulk, nodeOptions) {
   const root = results.root
+
+  results.blocks.push((await root.encode()))
+  that.cache.set(root)
+
   const opts = nodeOptions.opts
   const distance = root.distance
   const first = root.entryList.startKey
@@ -159,8 +163,7 @@ async function processRoot (that, results, bulk, nodeOptions) {
     const newLeaves = await generateNewLeaves(inserts, opts, that)
     const branchEntries = await generateBranchEntries(that, newLeaves, results, opts)
     const firstRootEntry = new opts.BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
-    results.blocks.push((await root.encode()))
-    that.cache.set(root)
+
     const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => opts.compare(a, b))
     let newBranches = await Node.from({
       ...nodeOptions,
@@ -191,6 +194,7 @@ async function processRoot (that, results, bulk, nodeOptions) {
     }))
     results.root = newBranches[0]
     // results.nodes = [root]
+    results.nodes = [...results.nodes, ...allBranches]
   }
 }
 
@@ -427,7 +431,7 @@ class Node {
       results.set(i, p)
     }
     let entries = [...this.entryList.entries]
-    const final = { previous: [], blocks: [] }
+    const final = { previous: [], blocks: [], nodes: [] }
     for (const [i, p] of results) {
       const { nodes, previous, blocks, distance: _distance } = await p
       distance = _distance
@@ -450,7 +454,13 @@ class Node {
     }
     entries = await Promise.all(newEntries.map(toEntry)) // .sort(({ key: a }, { key: b }) => opts.compare(a, b))
     const _opts = { ...nodeOptions, entries, NodeClass: BranchClass, distance }
-    return { nodes: await Node.from(_opts), ...final, distance }
+    final.nodes = await Node.from(_opts)
+    await Promise.all(final.nodes.map(async n => {
+      const block = await n.encode()
+      final.blocks.push(block)
+      this.cache.set(n)
+    }))
+    return { ...final, distance }
   }
 
   async handlePrepend (entries, opts, nodeOptions, final, distance) {
@@ -543,11 +553,9 @@ class Node {
             NodeClass: BranchClass,
             distance
           })
-          await Promise.all(newFirstNodes.map(async l => {
+          const newBranchEntries = await Promise.all(newFirstNodes.map(async (l) => {
             final.blocks.push(await l.encode())
             this.cache.set(l)
-          }))
-          const newBranchEntries = await Promise.all(newFirstNodes.map(async (l) => {
             return new BranchEntryClass({ key: l.key, address: await l.address }, opts)
           }))
           return newBranchEntries
@@ -608,8 +616,7 @@ class Node {
       results.nodes = newNodes
     }
 
-    const [root] = results.nodes
-    results.root = root
+    results.root = results.nodes[0]
 
     if (isRoot) {
       await processRoot(this, results, bulk, nodeOptions)
