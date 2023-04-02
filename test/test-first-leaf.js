@@ -376,6 +376,48 @@ describe('map first-leaf', () => {
     }
     same(errors.length, 0)
   }).timeout(10000)
+  it('basic decreasing string key', async () => {
+    const { get, put } = storage()
+    let mapRoot
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+    const { result } = await mapRoot.get('c').catch((e) => {
+      same(e.message, 'Failed at key: c')
+    })
+    same(result, 1)
+
+    const errors = []
+    const bigLim = 102
+    for (let rowCount = bigLim; rowCount > 33; rowCount--) {
+      // const key = String.fromCharCode(rowCount)
+      const key = '' + rowCount
+      const value = `${rowCount}-${key}`
+      const bulk = [{ key, value }]
+      console.log('key', key)
+      const { blocks, root } = await mapRoot.bulk(bulk)
+      for (const bl of blocks) {
+        await put(bl)
+      }
+
+      mapRoot = root
+      await mapRoot
+        .get(key)
+        .then(() => {})
+        .catch((e) => {
+          errors.push({ key, value, rowCount })
+        })
+      const allE = await mapRoot.getAllEntries()
+      console.log(allE.result.length)
+      // if (allE.result.length !== 11 + bigLim - rowCount) {
+      console.log(rowCount, allE.result.map((e) => e.value))
+      // }
+      same(allE.result.length, 11 + bigLim - rowCount)
+    }
+    same(errors.length, 0)
+  }).timeout(10000)
+
   it('insert causes chunker to return true for non-empty bulk', async () => {
     const { get, put } = storage()
     let root
