@@ -452,7 +452,7 @@ class Node {
       if (nodes.length) final.nodes = final.nodes.concat(nodes)
     }
     entries = entries.flat()
-    console.log('final nodes', await Promise.all(final.nodes.map(async b => (await b.address).toString())))
+    console.log('before Prepend nodes', await Promise.all(final.nodes.map(async b => (await b.address).toString())))
     // TODO: rewrite this to use getNode concurrently on merge
     const newEntries = await this.handlePrepend(entries, opts, nodeOptions, final, distance)
 
@@ -466,7 +466,7 @@ class Node {
     }
     entries = await Promise.all(newEntries.map(toEntry)) // .sort(({ key: a }, { key: b }) => opts.compare(a, b))
     const _opts = { ...nodeOptions, entries, NodeClass: BranchClass, distance }
-    final.nodes = await Node.from(_opts)
+    final.nodes = await Node.from(_opts) // stomp on previous nodes
     await Promise.all(final.nodes.map(async n => {
       const block = await n.encode()
       final.blocks.push(block)
@@ -609,6 +609,7 @@ class Node {
     const nodeOptions = { chunker: this.chunker, opts }
 
     const results = await this.transaction(bulk, opts)
+    console.log('results.nodes', results.nodes.length)
     while (results.nodes.length > 1) {
       const newDistance = results.nodes[0].distance + 1
 
@@ -638,7 +639,6 @@ class Node {
 
       results.nodes = newNodes
     }
-
     results.root = results.nodes[0]
 
     if (isRoot) {
