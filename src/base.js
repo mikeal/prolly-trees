@@ -454,6 +454,7 @@ class Node {
     entries = entries.flat()
     console.log('before Prepend nodes', await Promise.all(final.nodes.map(async b => (await b.address).toString())))
     // TODO: rewrite this to use getNode concurrently on merge
+
     const newEntries = await this.handlePrepend(entries, opts, nodeOptions, final, distance)
 
     distance++
@@ -466,12 +467,17 @@ class Node {
     }
     entries = await Promise.all(newEntries.map(toEntry)) // .sort(({ key: a }, { key: b }) => opts.compare(a, b))
     const _opts = { ...nodeOptions, entries, NodeClass: BranchClass, distance }
-    final.nodes = await Node.from(_opts) // stomp on previous nodes
-    await Promise.all(final.nodes.map(async n => {
+
+    const newNodes = await Node.from(_opts) // stomp on previous nodes
+    await Promise.all(newNodes.map(async n => {
       const block = await n.encode()
       final.blocks.push(block)
       this.cache.set(n)
     }))
+    // final.nodes = final.nodes.concat(newNodes)
+    // final.nodes = newNodes.concat(final.nodes)
+    // final.nodes = [...newNodes, ...beforePrependNodes]
+    final.nodes = newNodes
     return { ...final, distance }
   }
 
@@ -481,7 +487,6 @@ class Node {
     let prepend = null
     for (const entry of entries) {
       if (prepend) {
-        console.log('local entries', JSON.stringify(await Promise.all(final.nodes.map(async n => [n.constructor.name, (await n.address).toString()]))))
         const mergeEntries = await this.mergeFirstLeftEntries(entry, prepend, nodeOptions, final, distance)
         prepend = null
         const NodeClass = !mergeEntries[0].address ? LeafClass : BranchClass
@@ -515,8 +520,10 @@ class Node {
   async mergeFirstLeftEntries (entry, prepend, nodeOptions, final, distance) {
     const opts = nodeOptions.opts
     const { LeafClass, BranchClass, BranchEntryClass } = opts
-    console.log('crash here', this.constructor.name, await this.address, entry.constructor.name, await entry.address, this.entryList.entries.map(e => [e.constructor.name, e.key]))
+    console.log('crash here', await entry.address, await Promise.all(final.nodes.map(async e => [e.constructor.name, e.key, await e.address])))
     if (entry.isEntry) {
+      console.log('local blocks', JSON.stringify(await Promise.all(final.blocks.map(async n => [n.constructor.name, (await n.cid).toString()]))))
+
       const addr = await entry.address
       // const foundFinal = final.nodes.find(b => b.cid.toString() === addr.toString())
       // if (foundFinal) {
