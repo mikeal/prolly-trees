@@ -382,6 +382,24 @@ class Node {
 
   async transactionLeaf (bulk, opts, nodeOptions, results) {
     const { LeafClass, LeafEntryClass } = opts
+    const { entries, previous } = this.processLeafEntries(bulk, results, LeafEntryClass, opts)
+
+    const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
+    const nodes = await Node.from(_opts)
+    console.log('leaf nodes', JSON.stringify(await Promise.all(nodes.map(async n => [n.constructor.name, (await n.address).toString()]))))
+    return {
+      nodes,
+      previous,
+      blocks: await Promise.all(nodes.map(async (n) => {
+        const block = await n.encode()
+        this.cache.set(n)
+        return block
+      })),
+      distance: 0
+    }
+  }
+
+  processLeafEntries (bulk, results, LeafEntryClass, opts) {
     const previous = []
     let entries = []
     const changes = {}
@@ -414,11 +432,7 @@ class Node {
     // TODO: there's a faster version of this that only does one iteration
 
     entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
-
-    const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
-    const nodes = await Node.from(_opts)
-    // why is blocks empty?
-    return { nodes, previous, blocks: [], distance: 0 }
+    return { entries, previous }
   }
 
   async transactionBranch (bulk, opts, nodeOptions, results) {
@@ -502,8 +516,18 @@ class Node {
   async mergeFirstLeftEntries (entry, prepend, nodeOptions, final, distance) {
     const opts = nodeOptions.opts
     const { LeafClass, BranchClass, BranchEntryClass } = opts
-    if (entry.isEntry) { entry = await this.getNode(await entry.address) }
+    console.log('crash here', this.constructor.name, await this.address, entry.constructor.name, await entry.address, this.entryList.entries.map(e => [e.constructor.name, e.key]))
+    if (entry.isEntry) {
+      const addr = await entry.address
+      // const foundFinal = final.nodes.find(b => b.cid.toString() === addr.toString())
+      // if (foundFinal) {
+      //   entry = foundFinal
+      // } else {
+      entry = await this.getNode(addr)
+      // }
+    }
     const es = entry.entryList.entries
+    if (!es.length) throw new Error('unreachable no entries')
     if (es[0].constructor.name === prepend.entryList.entries[0].constructor.name) {
       return prepend.entryList.entries.concat(entry.entryList.entries)
     } else {
