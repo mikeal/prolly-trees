@@ -151,10 +151,8 @@ async function generateBranchEntries (that, newLeaves, results, opts) {
 
 async function processRoot (that, results, bulk, nodeOptions) {
   const root = results.root
-
   results.blocks.push((await root.encode()))
   that.cache.set(root)
-
   const opts = nodeOptions.opts
   const distance = root.distance
   const first = root.entryList.startKey
@@ -162,8 +160,8 @@ async function processRoot (that, results, bulk, nodeOptions) {
   if (inserts.length) {
     const newLeaves = await generateNewLeaves(inserts, opts, that)
     const branchEntries = await generateBranchEntries(that, newLeaves, results, opts)
-    const firstRootEntry = new opts.BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
 
+    const firstRootEntry = new opts.BranchEntryClass({ key: root.entryList.startKey, address: await root.address }, opts)
     const newBranchEntries = [firstRootEntry, ...branchEntries].sort(({ key: a }, { key: b }) => opts.compare(a, b))
     let newBranches = await Node.from({
       ...nodeOptions,
@@ -193,7 +191,6 @@ async function processRoot (that, results, bulk, nodeOptions) {
       results.blocks.push(block)
     }))
     results.root = newBranches[0]
-    // results.nodes = [root]
     results.nodes = [...results.nodes, ...allBranches]
   }
 }
@@ -430,11 +427,11 @@ class Node {
     }
     const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
     // TODO: there's a faster version of this that only does one iteration
-
     entries = entries.concat(appends).sort(({ key: a }, { key: b }) => opts.compare(a, b))
     return { entries, previous }
   }
 
+  // doesn't use bulk
   async transactionBranch (bulk, opts, nodeOptions, results) {
     const { BranchClass, BranchEntryClass } = opts
     let distance = 0
@@ -452,9 +449,10 @@ class Node {
       entries[i] = nodes
       if (previous.length) final.previous = final.previous.concat(previous)
       if (blocks.length) final.blocks = final.blocks.concat(blocks)
+      if (nodes.length) final.nodes = final.nodes.concat(nodes)
     }
     entries = entries.flat()
-
+    console.log('final nodes', await Promise.all(final.nodes.map(async b => (await b.address).toString())))
     // TODO: rewrite this to use getNode concurrently on merge
     const newEntries = await this.handlePrepend(entries, opts, nodeOptions, final, distance)
 
@@ -483,6 +481,7 @@ class Node {
     let prepend = null
     for (const entry of entries) {
       if (prepend) {
+        console.log('local entries', JSON.stringify(await Promise.all(final.nodes.map(async n => [n.constructor.name, (await n.address).toString()]))))
         const mergeEntries = await this.mergeFirstLeftEntries(entry, prepend, nodeOptions, final, distance)
         prepend = null
         const NodeClass = !mergeEntries[0].address ? LeafClass : BranchClass
