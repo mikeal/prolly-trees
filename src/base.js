@@ -138,7 +138,7 @@ async function generateBranchEntries (that, newLeaves, results, opts) {
   return await Promise.all(
     newLeaves.map(async (node) => {
       const block = await node.encode()
-      results.blocks.push(block)
+      results.blocks.push({ block, node })
       that.cache.set(node)
       const newBranchEntry = new opts.BranchEntryClass(
         { key: node.key, address: await node.address },
@@ -151,7 +151,8 @@ async function generateBranchEntries (that, newLeaves, results, opts) {
 
 async function processRoot (that, results, bulk, nodeOptions) {
   const root = results.root
-  results.blocks.push((await root.encode()))
+  results.blocks.push({ block: await root.encode(), node: root })
+
   that.cache.set(root)
   const opts = nodeOptions.opts
   const distance = root.distance
@@ -188,7 +189,7 @@ async function processRoot (that, results, bulk, nodeOptions) {
     await Promise.all(allBranches.map(async (m) => {
       const block = await m.encode()
       that.cache.set(m)
-      results.blocks.push(block)
+      results.blocks.push({ block, node: m })
     }))
     results.root = newBranches[0]
     results.nodes = [...results.nodes, ...allBranches]
@@ -390,7 +391,7 @@ class Node {
       blocks: await Promise.all(nodes.map(async (n) => {
         const block = await n.encode()
         this.cache.set(n)
-        return block
+        return { block, node: n }
       })),
       distance: 0
     }
@@ -455,13 +456,15 @@ class Node {
     console.log('before Prepend nodes', await Promise.all(final.nodes.map(async b => (await b.address).toString())))
     // TODO: rewrite this to use getNode concurrently on merge
 
+    // can we yield these to be written?
+
     const newEntries = await this.handlePrepend(entries, opts, nodeOptions, final, distance)
 
     distance++
     const toEntry = async branch => {
       if (branch.isEntry) return branch
       const block = await branch.encode()
-      final.blocks.push(block)
+      final.blocks.push({ block, node: branch })
       this.cache.set(branch)
       return new BranchEntryClass(branch, opts)
     }
@@ -471,7 +474,7 @@ class Node {
     const newNodes = await Node.from(_opts) // stomp on previous nodes
     await Promise.all(newNodes.map(async n => {
       const block = await n.encode()
-      final.blocks.push(block)
+      final.blocks.push({ block, node: n })
       this.cache.set(n)
     }))
     // final.nodes = final.nodes.concat(newNodes)
@@ -520,11 +523,19 @@ class Node {
   async mergeFirstLeftEntries (entry, prepend, nodeOptions, final, distance) {
     const opts = nodeOptions.opts
     const { LeafClass, BranchClass, BranchEntryClass } = opts
-    console.log('crash here', await entry.address, await Promise.all(final.nodes.map(async e => [e.constructor.name, e.key, await e.address])))
+    console.log('crash here', await entry.address)//, await Promise.all(final.nodes.map(async e => [e.constructor.name, e.key, await e.address])))
     if (entry.isEntry) {
-      console.log('local blocks', JSON.stringify(await Promise.all(final.blocks.map(async n => [n.constructor.name, (await n.cid).toString()]))))
-
       const addr = await entry.address
+      console.log('etnry', final.blocks) // some blocks are coming in without nodes. who is adding them to the array?
+      for (const { block, node } of final.blocks) {
+        console.log('block', block.constructor.name, await block.cid)
+        if (await block.cid === addr) {
+          console.log('matching block', block.constructor.name, node)
+        }
+      }
+
+      // console.log('local blocks', JSON.stringify(await Promise.all(final.blocks.map(async n => [n.constructor.name, (await n.cid).toString(), n.value]))))
+
       // const foundFinal = final.nodes.find(b => b.cid.toString() === addr.toString())
       // if (foundFinal) {
       //   entry = foundFinal
@@ -573,7 +584,7 @@ class Node {
             })
           }
           const mergeLeftBranchEntries = await Promise.all(mergeLeftNodes.map(async l => {
-            final.blocks.push(await l.encode())
+            final.blocks.push({ block: await l.encode(), node: l })
             this.cache.set(l)
             return new BranchEntryClass({ key: l.key, address: await l.address }, opts)
           }))
@@ -584,7 +595,7 @@ class Node {
             distance
           })
           const newBranchEntries = await Promise.all(newFirstNodes.map(async (l) => {
-            final.blocks.push(await l.encode())
+            final.blocks.push({ block: await l.encode(), node: l })
             this.cache.set(l)
             return new BranchEntryClass({ key: l.key, address: await l.address }, opts)
           }))
@@ -623,7 +634,7 @@ class Node {
       const branchEntries = await Promise.all(
         results.nodes.map(async node => {
           const block = await node.encode()
-          results.blocks.push(block)
+          results.blocks.push({ block, node })
           this.cache.set(node)
           return new opts.BranchEntryClass(node, opts)
         })
@@ -640,7 +651,7 @@ class Node {
         newNodes.map(async node => {
           const block = await node.encode()
           this.cache.set(node)
-          results.blocks.push(block)
+          results.blocks.push({ block, node })
         })
       )
 
@@ -651,7 +662,7 @@ class Node {
     if (isRoot) {
       await processRoot(this, results, bulk, nodeOptions)
     }
-
+    results.blocks = results.blocks.map(({ block }) => block)
     return results
   }
 
