@@ -539,77 +539,122 @@ class Node {
     console.log('entry.entryList.entries', entry.constructor.name, entry.key)
     /* c8 ignore next */
     if (!es.length) throw new Error('unreachable no entries')
+
+    const basicMerge = (entries1, entries2) => {
+      console.log('basicMerge', entries1.concat(entries2).map(e => [e.key, e.constructor.name]))
+      return entries1.concat(entries2)
+    }
+
+    const processNodesAndCreateEntries = async (nodes, final, opts) => {
+      return await Promise.all(
+        nodes.map(async (l) => {
+          final.blocks.push({ block: await l.encode(), node: l })
+          this.cache.set(l)
+          return new BranchEntryClass(
+            { key: l.key, address: await l.address },
+            opts
+          )
+        })
+      )
+    }
+
+    const handleMode0 = async (entryList1, entryList2, es) => {
+      return basicMerge(entryList1, entryList2)
+    }
+
+    const handleMode1 = async (mergeLeftEntries, oldFront) => {
+      return basicMerge(mergeLeftEntries, oldFront.entryList.entries)
+    }
+
+    const handleMode2 = async (
+      mergeLeftEntries,
+      oldFront,
+      nodeOptions,
+      final,
+      distance,
+      opts
+    ) => {
+      const mergeLeftNodes = await Node.from({
+        ...nodeOptions,
+        entries: mergeLeftEntries.sort(({ key: a }, { key: b }) =>
+          opts.compare(a, b)
+        ),
+        NodeClass: LeafClass,
+        distance
+      })
+      console.log('mergeLeftNodes:', mergeLeftNodes.map(n => [n.key, n.constructor.name]))
+
+      const mergeLeftBranchEntries = await processNodesAndCreateEntries(
+        mergeLeftNodes,
+        final,
+        opts
+      )
+
+      const newFirstNodes = await Node.from({
+        ...nodeOptions,
+        entries: [
+          ...oldFront.entryList.entries,
+          ...mergeLeftBranchEntries
+        ].sort(({ key: a }, { key: b }) => opts.compare(a, b)),
+        NodeClass: BranchClass,
+        distance
+      })
+      console.log('newFirstNodes:', newFirstNodes.map(n => [n.key, n.constructor.name]))
+
+      const newBranchEntries = await processNodesAndCreateEntries(
+        newFirstNodes,
+        final,
+        opts
+      )
+      console.log('newBranchEntries:', newBranchEntries.map(e => [e.key, e.constructor.name]))
+
+      return newBranchEntries
+    }
+
     if (es[0].constructor.name === prepend.entryList.entries[0].constructor.name) {
-      console.log('basicMerge', prepend.entryList.entries.concat(es).map(e => [e.key, e.constructor.name]))
-      return prepend.entryList.entries.concat(es)
+      return await handleMode0(prepend.entryList.entries, es)
     } else {
       const leftEntry = es.shift()
-      /* c8 ignore next */
       if (!leftEntry) throw new Error('unreachable no left entry')
-      /* c8 ignore next */
-      if (!leftEntry.address) throw new Error('unreachable existing leaf, no leftEntry.address')
-      const mergeLeftEntriesA = await this.mergeFirstLeftEntries(leftEntry, prepend, nodeOptions, final, distance - 1)
-      const esf = es.shift()
-      if (!esf) {
-        return mergeLeftEntriesA
-      }
-      console.log('........es', es.map(e => [e.key, e.constructor.name]))
-      // maybe we concat after the old front is processed?
-      // const mergeLeftEntries = mergeLeftEntriesA.concat(es)
-      const mergeLeftEntries = mergeLeftEntriesA
+      if (!leftEntry.address) { throw new Error('unreachable existing leaf, no leftEntry.address') }
+
+      const mergeLeftEntries = await this.mergeFirstLeftEntries(
+        leftEntry,
+        prepend,
+        nodeOptions,
+        final,
+        distance - 1
+      )
       console.log('Merged entries:', mergeLeftEntries.map(e => [e.key, e.constructor.name]))
 
-      /* c8 ignore next */
-      if (!esf.address) throw new Error('unreachable existing leaf, no esf.address') // es is branch entries
+      const esf = es.shift()
 
-      const oldFront = await this.getNodeFirstFromBlocks(final.blocks, await esf.address)
+      if (!esf) {
+        return mergeLeftEntries
+      }
+
+      if (!esf.address) { throw new Error('unreachable existing leaf, no esf.address') }
+
+      const oldFront = await this.getNodeFirstFromBlocks(
+        final.blocks,
+        await esf.address
+      )
+
       if (!oldFront.entryList.entries[0].address) {
         console.log('basicOldFront', mergeLeftEntries.concat(oldFront.entryList.entries).map(e => [e.key, e.constructor.name]))
         console.log('basicOldFront remainder', es.map(e => [e.key, e.constructor.name]))
-        return mergeLeftEntries.concat(oldFront.entryList.entries)// .concat(es)
+        return await handleMode1(mergeLeftEntries, oldFront)
       } else {
-        // let mergeLeftNodes
-        /* c8 ignore next */
-        if (mergeLeftEntries[0].address) { throw new Error('unreachable') }
-        // mergeLeftNodes = await Node.from({
-        //   ...nodeOptions,
-        //   entries: mergeLeftEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
-        //   NodeClass: BranchClass,
-        //   distance
-        // })
-        // } else {
-
-        // concat es here?
-        const mergeLeftNodes = await Node.from({
-          ...nodeOptions,
-          entries: mergeLeftEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
-          NodeClass: LeafClass,
-          distance
-        })
-        // }
-        console.log('mergeLeftNodes:', mergeLeftNodes.map(n => n.key))
-
-        const mergeLeftBranchEntries = await Promise.all(mergeLeftNodes.map(async l => {
-          final.blocks.push({ block: await l.encode(), node: l })
-          this.cache.set(l)
-          return new BranchEntryClass({ key: l.key, address: await l.address }, opts)
-        }))
-        const newFirstNodes = await Node.from({
-          ...nodeOptions,
-          entries: [...oldFront.entryList.entries, ...mergeLeftBranchEntries].sort(({ key: a }, { key: b }) => opts.compare(a, b)),
-          NodeClass: BranchClass,
-          distance
-        })
-        console.log('newFirstNodes:', newFirstNodes.map(n => n.key))
-
-        const newBranchEntries = await Promise.all(newFirstNodes.map(async (l) => {
-          final.blocks.push({ block: await l.encode(), node: l })
-          this.cache.set(l)
-          return new BranchEntryClass({ key: l.key, address: await l.address }, opts)
-        }))
-        console.log('newBranchEntries:', newBranchEntries.map(e => e.key))
-
-        return newBranchEntries
+        if (mergeLeftEntries[0].address) {
+          throw new Error('unreachable')
+        }
+        return await handleMode2(
+          mergeLeftEntries,
+          oldFront,
+          nodeOptions,
+          final,
+          distance,
+          opts)
       }
     }
   }
