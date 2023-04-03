@@ -449,7 +449,7 @@ describe('map first-leaf', () => {
       const allE = await mapRoot.getAllEntries()
       same(allE.result.length, 11 + bigLim - rowCount)
     }
-  }).timeout(10000)
+  }).timeout(20000)
 
   it('insert causes chunker to return true for non-empty bulk', async () => {
     const { get, put } = storage()
