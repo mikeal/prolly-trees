@@ -413,7 +413,7 @@ describe('map first-leaf', () => {
     }
   }).timeout(10000)
 
-  it('big decreasing string key', async () => {
+  it('big decreasing string key normal', async () => {
     const { get, put } = storage()
     let mapRoot
     for await (const node of create({ get, compare, list, ...opts })) {
@@ -430,7 +430,7 @@ describe('map first-leaf', () => {
       // const key = String.fromCharCode(rowCount)
       const key = '' + rowCount
       const value = `${rowCount}-${key}`
-      console.log('key', key, 'value', value)
+      // console.log('key', key, 'value', value)
       bulk.push({ key, value })
       const { blocks, root } = await mapRoot.bulk(bulk)
       for (const bl of blocks) {
@@ -440,10 +440,10 @@ describe('map first-leaf', () => {
       const got = await mapRoot.get(key)
       same(got.result, value)
 
-      console.log('tree for rowCount', rowCount)
+      // console.log('tree for rowCount', rowCount)
       for await (const line of mapRoot.vis()) {
         same(typeof line, 'string')
-        console.log(line)
+        // console.log(line)
       }
 
       const allE = await mapRoot.getAllEntries()
