@@ -530,17 +530,18 @@ class Node {
   async mergeFirstLeftEntries (entry, prepend, nodeOptions, final, distance) {
     const opts = nodeOptions.opts
     const { LeafClass, BranchClass, BranchEntryClass } = opts
-    console.log('mergeFirstLeftEntries', await entry.address)//, await Promise.all(final.nodes.map(async e => [e.constructor.name, e.key, await e.address])))
+    console.log('mergeFirstLeftEntries', await entry.address)
     if (entry.isEntry) {
       const addr = await entry.address
       entry = await this.getNodeFirstFromBlocks(final.blocks, addr)
     }
     const es = entry.entryList.entries
-    console.log('entry.entryList.entries', entry.constructor.name, entry.key, es.map(e => e.key))
+    console.log('entry.entryList.entries', entry.constructor.name, entry.key)
     /* c8 ignore next */
     if (!es.length) throw new Error('unreachable no entries')
     if (es[0].constructor.name === prepend.entryList.entries[0].constructor.name) {
-      return prepend.entryList.entries.concat(entry.entryList.entries)
+      console.log('basicMerge', prepend.entryList.entries.concat(es).map(e => [e.key, e.constructor.name]))
+      return prepend.entryList.entries.concat(es)
     } else {
       const leftEntry = es.shift()
       /* c8 ignore next */
@@ -552,17 +553,20 @@ class Node {
       if (!esf) {
         return mergeLeftEntriesA
       }
+      console.log('........es', es.map(e => [e.key, e.constructor.name]))
+      // maybe we concat after the old front is processed?
       // const mergeLeftEntries = mergeLeftEntriesA.concat(es)
-      // try the above
       const mergeLeftEntries = mergeLeftEntriesA
-      console.log('Merged entries:', mergeLeftEntries.map(e => [e.constructor.name, e.key]))
+      console.log('Merged entries:', mergeLeftEntries.map(e => [e.key, e.constructor.name]))
 
       /* c8 ignore next */
-      if (!esf.address) throw new Error('unreachable existing leaf, no esf.address')
-      // try {
+      if (!esf.address) throw new Error('unreachable existing leaf, no esf.address') // es is branch entries
+
       const oldFront = await this.getNodeFirstFromBlocks(final.blocks, await esf.address)
       if (!oldFront.entryList.entries[0].address) {
-        return mergeLeftEntries.concat(oldFront.entryList.entries)
+        console.log('basicOldFront', mergeLeftEntries.concat(oldFront.entryList.entries).map(e => [e.key, e.constructor.name]))
+        console.log('basicOldFront remainder', es.map(e => [e.key, e.constructor.name]))
+        return mergeLeftEntries.concat(oldFront.entryList.entries)// .concat(es)
       } else {
         // let mergeLeftNodes
         /* c8 ignore next */
@@ -574,6 +578,8 @@ class Node {
         //   distance
         // })
         // } else {
+
+        // concat es here?
         const mergeLeftNodes = await Node.from({
           ...nodeOptions,
           entries: mergeLeftEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
@@ -605,10 +611,6 @@ class Node {
 
         return newBranchEntries
       }
-      // } catch (err) {
-      //   console.log('pt.base err', err)
-      //   return mergeLeftEntries
-      // }
     }
   }
 
