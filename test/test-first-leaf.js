@@ -327,7 +327,7 @@ describe('map first-leaf', () => {
       mapRoot = node
     }
 
-    const limit = 100
+    const limit = 200
 
     for (let rowCount = 77; rowCount < limit; rowCount++) {
       const key = String.fromCharCode(rowCount)
@@ -376,6 +376,81 @@ describe('map first-leaf', () => {
     }
     same(errors.length, 0)
   }).timeout(10000)
+  it('basic decreasing string key', async () => {
+    const { get, put } = storage()
+    let mapRoot
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+    const { result } = await mapRoot.get('c').catch((e) => {
+      same(e.message, 'Failed at key: c')
+    })
+    same(result, 1)
+
+    const bigLim = 102
+    for (let rowCount = bigLim; rowCount > 33; rowCount--) {
+      // const key = String.fromCharCode(rowCount)
+      const key = '' + rowCount
+      const value = `${rowCount}-${key}`
+      const bulk = [{ key, value }]
+      const { blocks, root } = await mapRoot.bulk(bulk)
+      for (const bl of blocks) {
+        await put(bl)
+      }
+      mapRoot = root
+      const got = await mapRoot.get(key)
+      same(got.result, value)
+
+      // console.log('tree for rowCount', rowCount)
+      for await (const line of mapRoot.vis()) {
+        same(typeof line, 'string')
+        // console.log(line)
+      }
+
+      const allE = await mapRoot.getAllEntries()
+      same(allE.result.length, 11 + bigLim - rowCount)
+    }
+  }).timeout(10000)
+
+  it('big decreasing string key normal', async () => {
+    const { get, put } = storage()
+    let mapRoot
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+    const { result } = await mapRoot.get('c').catch((e) => {
+      same(e.message, 'Failed at key: c')
+    })
+    same(result, 1)
+    const bulk = []
+    const bigLim = 202
+    for (let rowCount = bigLim; rowCount > 33; rowCount--) {
+      // const key = String.fromCharCode(rowCount)
+      const key = '' + rowCount
+      const value = `${rowCount}-${key}`
+      // console.log('key', key, 'value', value)
+      bulk.push({ key, value })
+      const { blocks, root } = await mapRoot.bulk(bulk)
+      for (const bl of blocks) {
+        await put(bl)
+      }
+      mapRoot = root
+      const got = await mapRoot.get(key)
+      same(got.result, value)
+
+      // console.log('tree for rowCount', rowCount)
+      for await (const line of mapRoot.vis()) {
+        same(typeof line, 'string')
+        // console.log(line)
+      }
+
+      const allE = await mapRoot.getAllEntries()
+      same(allE.result.length, 11 + bigLim - rowCount)
+    }
+  }).timeout(10000)
+
   it('insert causes chunker to return true for non-empty bulk', async () => {
     const { get, put } = storage()
     let root
@@ -673,13 +748,13 @@ describe('map first-leaf', () => {
       mapRoot = node
     }
 
-    const size = 5 // passes with size = 4
+    const size = 50 // passes with size = 4
     // Insert new keys with decreasing order
     for (let index = 1; index < size; index++) {
       const key = (2000 - index).toString()
       const bulk = [{ key, value: index }]
       const { blocks, root } = await mapRoot.bulk(bulk, { ...opts })
-      await put(await root.block)
+      // await put(await root.block)
       for (const block of blocks) {
         await put(block)
       }
@@ -711,7 +786,7 @@ describe('map first-leaf', () => {
       await put(await node.block)
       mapRoot = node
     }
-    const size = 5
+    const size = 50
     // Insert new keys with increasing order
     for (let index = 0; index < size; index++) {
       const key = (1000 + index).toString()

@@ -82,35 +82,12 @@ const createGetNode = (get, cache, chunker, codec, hasher, compare, opts) => {
   const BranchClass = opts.BranchClass || MapBranch
   const BranchEntryClass = opts.BranchEntryClass || MapBranchEntry
 
-  const entryOpts = { codec, hasher }
-
-  const decoder = block => {
-    const { value } = block
-    const opts = { chunker, cache, block, getNode, codec, hasher, compare }
-    let entries
-    let CLS
-    if (value.leaf) {
-      entries = value.leaf.map(([key, value]) => new LeafEntryClass({ key, value }, entryOpts))
-      CLS = LeafClass
-    } else if (value.branch) {
-      const [distance, _entries] = value.branch
-      opts.distance = distance
-      entries = _entries.map(([key, address]) => new BranchEntryClass({ key, address }, entryOpts))
-      CLS = BranchClass
-    } /* c8 ignore next */ else {
-      /* c8 ignore next */
-      throw new Error('Unknown block data, does not match schema')
-      /* c8 ignore next */
-    }
-    const entryList = new EntryList({ entries, closed: value.closed })
-    const node = new CLS({ entryList, ...opts })
-    cache.set(node)
-    return node
-  }
   const getNode = async cid => {
     if (cache.has(cid)) return cache.get(cid)
     return get(cid).then(block => decoder(block))
   }
+  const decoder = makeDecoder({ chunker, cache, getNode, codec, hasher, compare, LeafEntryClass, LeafClass, BranchEntryClass, BranchClass })
+
   return getNode
 }
 
@@ -139,4 +116,31 @@ const load = ({ cid, get, cache, chunker, codec, hasher, compare, ...opts }) => 
   return getNode(cid)
 }
 
+function makeDecoder ({ chunker, cache, getNode, codec, hasher, compare, LeafEntryClass, LeafClass, BranchEntryClass, BranchClass }) {
+  const entryOpts = { codec, hasher }
+
+  return block => {
+    const { value } = block
+    const opts = { chunker, cache, block, getNode, codec, hasher, compare }
+    let entries
+    let CLS
+    if (value.leaf) {
+      entries = value.leaf.map(([key, value]) => new LeafEntryClass({ key, value }, entryOpts))
+      CLS = LeafClass
+    } else if (value.branch) {
+      const [distance, _entries] = value.branch
+      opts.distance = distance
+      entries = _entries.map(([key, address]) => new BranchEntryClass({ key, address }, entryOpts))
+      CLS = BranchClass
+    } /* c8 ignore next */ else {
+      /* c8 ignore next */
+      throw new Error('Unknown block data, does not match schema')
+      /* c8 ignore next */
+    }
+    const entryList = new EntryList({ entries, closed: value.closed })
+    const node = new CLS({ entryList, ...opts })
+    cache.set(node)
+    return node
+  }
+}
 export { create, load, MapLeaf, MapBranch, MapLeafEntry, MapBranchEntry }
