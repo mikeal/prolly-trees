@@ -402,6 +402,44 @@ describe('map first-leaf', () => {
       const got = await mapRoot.get(key)
       same(got.result, value)
 
+      // console.log('tree for rowCount', rowCount)
+      for await (const line of mapRoot.vis()) {
+        same(typeof line, 'string')
+        // console.log(line)
+      }
+
+      const allE = await mapRoot.getAllEntries()
+      same(allE.result.length, 11 + bigLim - rowCount)
+    }
+  }).timeout(10000)
+
+  it('big decreasing string key', async () => {
+    const { get, put } = storage()
+    let mapRoot
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      mapRoot = node
+    }
+    const { result } = await mapRoot.get('c').catch((e) => {
+      same(e.message, 'Failed at key: c')
+    })
+    same(result, 1)
+    const bulk = []
+    const bigLim = 202
+    for (let rowCount = bigLim; rowCount > 33; rowCount--) {
+      // const key = String.fromCharCode(rowCount)
+      const key = '' + rowCount
+      const value = `${rowCount}-${key}`
+      console.log('key', key, 'value', value)
+      bulk.push({ key, value })
+      const { blocks, root } = await mapRoot.bulk(bulk)
+      for (const bl of blocks) {
+        await put(bl)
+      }
+      mapRoot = root
+      const got = await mapRoot.get(key)
+      same(got.result, value)
+
       console.log('tree for rowCount', rowCount)
       for await (const line of mapRoot.vis()) {
         same(typeof line, 'string')
@@ -409,10 +447,6 @@ describe('map first-leaf', () => {
       }
 
       const allE = await mapRoot.getAllEntries()
-      // console.log(allE.result.length)
-      // if (allE.result.length !== 11 + bigLim - rowCount) {
-      // console.log(rowCount, allE.result.map((e) => e.value))
-      // }
       same(allE.result.length, 11 + bigLim - rowCount)
     }
   }).timeout(10000)

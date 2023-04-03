@@ -257,10 +257,11 @@ class Node {
 
   async * vis (cids = new Set()) {
     const renderNodeLabel = async (node) => {
-      const entries = node.entryList.entries.map((e) => `[${e.key},${JSON.stringify(e.value || '').replace(/"/g, "'")}]`).join(', ')
       if (node.isLeaf) {
+        const entries = node.entryList.entries.map((e) => `[${e.key},${JSON.stringify(e.value || '').replace(/"/g, "'")}]`).join(', ')
         return `Leaf [${entries}]`
       } else {
+        const entries = node.entryList.entries.map((e) => `[${e.key}]`).join(', ')
         return `Branch [${entries}]`
       }
     }
@@ -383,7 +384,6 @@ class Node {
 
     const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
     const nodes = await Node.from(_opts)
-    // console.log('leaf nodes', JSON.stringify(await Promise.all(nodes.map(async n => [n.constructor.name, (await n.address).toString()]))))
     return {
       nodes,
       previous,
@@ -495,7 +495,7 @@ class Node {
           ...nodeOptions,
           entries: mergeEntries.sort(({ key: a }, { key: b }) => opts.compare(a, b)),
           NodeClass,
-          distance: distance // TODO: is this right?
+          distance: distance
         }
         const nodes = await Node.from(_opts)
         if (!nodes[nodes.length - 1].closed) {
@@ -558,66 +558,15 @@ class Node {
       )
     }
 
-    const handleMode0 = async (entryList1, entryList2, es) => {
-      return basicMerge(entryList1, entryList2)
-    }
-
-    const handleMode1 = async (mergeLeftEntries, oldFront) => {
-      return basicMerge(mergeLeftEntries, oldFront.entryList.entries)
-    }
-
-    const handleMode2 = async (
-      mergeLeftEntries,
-      oldFront,
-      nodeOptions,
-      final,
-      distance,
-      opts
-    ) => {
-      const mergeLeftNodes = await Node.from({
-        ...nodeOptions,
-        entries: mergeLeftEntries.sort(({ key: a }, { key: b }) =>
-          opts.compare(a, b)
-        ),
-        NodeClass: LeafClass,
-        distance
-      })
-      console.log('mergeLeftNodes:', mergeLeftNodes.map(n => [n.key, n.constructor.name]))
-
-      const mergeLeftBranchEntries = await processNodesAndCreateEntries(
-        mergeLeftNodes,
-        final,
-        opts
-      )
-
-      const newFirstNodes = await Node.from({
-        ...nodeOptions,
-        entries: [
-          ...oldFront.entryList.entries,
-          ...mergeLeftBranchEntries
-        ].sort(({ key: a }, { key: b }) => opts.compare(a, b)),
-        NodeClass: BranchClass,
-        distance
-      })
-      console.log('newFirstNodes:', newFirstNodes.map(n => [n.key, n.constructor.name]))
-
-      const newBranchEntries = await processNodesAndCreateEntries(
-        newFirstNodes,
-        final,
-        opts
-      )
-      console.log('newBranchEntries:', newBranchEntries.map(e => [e.key, e.constructor.name]))
-
-      return newBranchEntries
-    }
-
     if (es[0].constructor.name === prepend.entryList.entries[0].constructor.name) {
-      return await handleMode0(prepend.entryList.entries, es)
+      return await basicMerge(prepend.entryList.entries, es)
     } else {
       const leftEntry = es.shift()
+      /* c8 ignore next */
       if (!leftEntry) throw new Error('unreachable no left entry')
-      if (!leftEntry.address) { throw new Error('unreachable existing leaf, no leftEntry.address') }
-
+      /* c8 ignore next */
+      if (!leftEntry.address) throw new Error('unreachable existing leaf, no leftEntry.address')
+      // maybe should be while es.length
       const mergeLeftEntries = await this.mergeFirstLeftEntries(
         leftEntry,
         prepend,
@@ -625,36 +574,77 @@ class Node {
         final,
         distance - 1
       )
-      console.log('Merged entries:', mergeLeftEntries.map(e => [e.key, e.constructor.name]))
 
       const esf = es.shift()
 
       if (!esf) {
         return mergeLeftEntries
       }
+      /* c8 ignore next */
+      if (!esf.address) throw new Error('unreachable existing leaf, no esf.address')
 
-      if (!esf.address) { throw new Error('unreachable existing leaf, no esf.address') }
-
-      const oldFront = await this.getNodeFirstFromBlocks(
-        final.blocks,
-        await esf.address
-      )
+      const oldFront = await this.getNodeFirstFromBlocks(final.blocks, await esf.address)
 
       if (!oldFront.entryList.entries[0].address) {
-        console.log('basicOldFront', mergeLeftEntries.concat(oldFront.entryList.entries).map(e => [e.key, e.constructor.name]))
-        console.log('basicOldFront remainder', es.map(e => [e.key, e.constructor.name]))
-        return await handleMode1(mergeLeftEntries, oldFront)
+        const leftLeafEntries = await basicMerge(mergeLeftEntries, oldFront.entryList.entries)
+
+        const leftLeafNodes = await Node.from({
+          ...nodeOptions,
+          entries: leftLeafEntries.sort(({ key: a }, { key: b }) =>
+            opts.compare(a, b)
+          ),
+          NodeClass: LeafClass,
+          distance
+        })
+
+        const leftBranches = await processNodesAndCreateEntries(
+          leftLeafNodes,
+          final,
+          opts
+        )
+
+        return await basicMerge(leftBranches, es)
       } else {
         if (mergeLeftEntries[0].address) {
-          throw new Error('unreachable')
+          // throw new Error('unreachable left branch')
+          return mergeLeftEntries.concat(oldFront.entryList.entries)
+        } else {
+          const mergeLeftNodes = await Node.from({
+            ...nodeOptions,
+            entries: mergeLeftEntries.sort(({ key: a }, { key: b }) =>
+              opts.compare(a, b)
+            ),
+            NodeClass: LeafClass,
+            distance
+          })
+          console.log('mergeLeftNodes:', mergeLeftNodes.map(n => [n.key, n.constructor.name]))
+
+          const mergeLeftBranchEntries = await processNodesAndCreateEntries(
+            mergeLeftNodes,
+            final,
+            opts
+          )
+
+          const newFirstNodes = await Node.from({
+            ...nodeOptions,
+            entries: [
+              ...oldFront.entryList.entries,
+              ...mergeLeftBranchEntries
+            ].sort(({ key: a }, { key: b }) => opts.compare(a, b)),
+            NodeClass: BranchClass,
+            distance
+          })
+          console.log('newFirstNodes:', newFirstNodes.map(n => [n.key, n.constructor.name]))
+
+          const newBranchEntries = await processNodesAndCreateEntries(
+            newFirstNodes,
+            final,
+            opts
+          )
+          console.log('newBranchEntries:', newBranchEntries.map(e => [e.key, e.constructor.name]))
+
+          return newBranchEntries
         }
-        return await handleMode2(
-          mergeLeftEntries,
-          oldFront,
-          nodeOptions,
-          final,
-          distance,
-          opts)
       }
     }
   }
@@ -678,7 +668,6 @@ class Node {
     const nodeOptions = { chunker: this.chunker, opts }
 
     const results = await this.transaction(bulk, opts)
-    // console.log('results.nodes', results.nodes.length)
     while (results.nodes.length > 1) {
       const newDistance = results.nodes[0].distance + 1
 
