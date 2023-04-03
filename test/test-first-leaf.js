@@ -388,34 +388,33 @@ describe('map first-leaf', () => {
     })
     same(result, 1)
 
-    const errors = []
     const bigLim = 102
     for (let rowCount = bigLim; rowCount > 33; rowCount--) {
       // const key = String.fromCharCode(rowCount)
       const key = '' + rowCount
       const value = `${rowCount}-${key}`
       const bulk = [{ key, value }]
-      console.log('key', key)
       const { blocks, root } = await mapRoot.bulk(bulk)
       for (const bl of blocks) {
         await put(bl)
       }
-
       mapRoot = root
-      await mapRoot
-        .get(key)
-        .then(() => {})
-        .catch((e) => {
-          errors.push({ key, value, rowCount })
-        })
+      const got = await mapRoot.get(key)
+      same(got.result, value)
+
+      console.log('tree for rowCount', rowCount)
+      for await (const line of mapRoot.vis()) {
+        same(typeof line, 'string')
+        console.log(line)
+      }
+
       const allE = await mapRoot.getAllEntries()
-      console.log(allE.result.length)
+      // console.log(allE.result.length)
       // if (allE.result.length !== 11 + bigLim - rowCount) {
-      console.log(rowCount, allE.result.map((e) => e.value))
+      // console.log(rowCount, allE.result.map((e) => e.value))
       // }
       same(allE.result.length, 11 + bigLim - rowCount)
     }
-    same(errors.length, 0)
   }).timeout(10000)
 
   it('insert causes chunker to return true for non-empty bulk', async () => {

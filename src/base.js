@@ -264,14 +264,14 @@ class Node {
         return `Branch [${entries}]`
       }
     }
-
+    const shortCid = (cid) => cid.toString().slice(0, 4) + cid.toString().slice(-4)
     const visit = async function * (node, parentId, cids) {
       const nodeId = (await node.address)// .toString()
       if (!cids.has(nodeId)) {
         cids.add(nodeId)
         const nodeLabel = await renderNodeLabel(node)
-        yield `  node [shape=ellipse fontname="Courier"]; ${nodeId} [label="${nodeLabel}"];`
-        yield `  ${parentId} -> ${nodeId};`
+        yield `  node [shape=ellipse fontname="Courier"]; ${shortCid(nodeId)} [label="${nodeLabel}"];`
+        yield `  ${shortCid(parentId)} -> ${shortCid(nodeId)};`
 
         for (const entry of node.entryList.entries) {
           if (entry.address) {
@@ -282,9 +282,9 @@ class Node {
               /* c8 ignore next */
             } catch (err) {
               /* c8 ignore next */
-              yield `  ${nodeId} -> ${entryId};`
+              yield `  ${shortCid(nodeId)} -> ${shortCid(entryId)};`
               /* c8 ignore next */
-              yield `  node [shape=ellipse fontname="Courier"]; ${entryId} [label="Error: ${err.message}"];`
+              yield `  node [shape=ellipse fontname="Courier"]; ${shortCid(entryId)} [label="Error: ${err.message}"];`
               /* c8 ignore next */
             }
           }
@@ -292,8 +292,8 @@ class Node {
       }
     }
     yield 'digraph tree {'
-    yield '  node [shape=ellipse fontname="Courier"]; root;'
-    for await (const line of visit(this, 'root', cids)) {
+    yield '  node [shape=ellipse fontname="Courier"]; rootnode;'
+    for await (const line of visit(this, 'rootnode', cids)) {
       yield line
     }
     yield '}'
@@ -368,7 +368,7 @@ class Node {
     }
     const nodeOptions = { chunker: this.chunker, opts }
     const results = this.entryList.findMany(bulk, opts.compare, true, this.isLeaf)
-
+    console.log('transaction', bulk.map(({ key }) => key), 'results', JSON.stringify([...results.values()].map((entry) => [entry[0].key, entry[1].map(({ key }) => key)])))
     if (this.isLeaf) {
       return await this.transactionLeaf(bulk, opts, nodeOptions, results)
     } else {
@@ -379,6 +379,7 @@ class Node {
   async transactionLeaf (bulk, opts, nodeOptions, results) {
     const { LeafClass, LeafEntryClass } = opts
     const { entries, previous } = this.processLeafEntries(bulk, results, LeafEntryClass, opts)
+    console.log('transactionLeaf', bulk.map(({ key }) => key), 'entries', JSON.stringify(entries.map(({ key }) => key)))
 
     const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
     const nodes = await Node.from(_opts)
@@ -435,6 +436,7 @@ class Node {
     const { BranchClass, BranchEntryClass } = opts
     let distance = 0
     for (const [i, [entry, keys]] of results) {
+      console.log('transactionBranch', entry.key, JSON.stringify(keys.map(({ key }) => key)))
       const p = this.getNode(await entry.address)
         .then(node => node.transaction(keys.reverse(), { ...opts, sorted: true }))
         .then(r => ({ entry, keys, distance, ...r }))
@@ -451,11 +453,6 @@ class Node {
       if (nodes.length) final.nodes = final.nodes.concat(nodes)
     }
     entries = entries.flat()
-    // console.log('before Prepend nodes', await Promise.all(final.nodes.map(async b => (await b.address).toString())))
-    // TODO: rewrite this to use getNode concurrently on merge
-
-    // can we yield these to be written?
-
     const newEntries = await this.handlePrepend(entries, opts, nodeOptions, final, distance)
 
     distance++
@@ -466,6 +463,7 @@ class Node {
       this.cache.set(branch)
       return new BranchEntryClass(branch, opts)
     }
+    console.log('transactionBranch', bulk.map(({ key }) => key), 'newEntries', JSON.stringify(newEntries.map(({ key }) => key)))
     entries = await Promise.all(newEntries.map(toEntry)) // .sort(({ key: a }, { key: b }) => opts.compare(a, b))
     const _opts = { ...nodeOptions, entries, NodeClass: BranchClass, distance }
 
@@ -486,9 +484,11 @@ class Node {
     const { BranchClass, LeafClass } = opts
     let newEntries = []
     let prepend = null
+    console.log('handlePrepend', entries.map(e => e.key))
     for (const entry of entries) {
       if (prepend) {
         const mergeEntries = await this.mergeFirstLeftEntries(entry, prepend, nodeOptions, final, distance)
+        console.log('did mergeFirstLeftEntries', mergeEntries.map(e => e.key))
         prepend = null
         const NodeClass = !mergeEntries[0].address ? LeafClass : BranchClass
         const _opts = {
@@ -512,9 +512,11 @@ class Node {
         }
       }
     }
+    console.log('newEntries after loop', newEntries.map(e => e.key))
     if (prepend) {
       newEntries.push(prepend)
     }
+    console.log('did prepend', newEntries.map(e => e.key))
     return newEntries
   }
 
@@ -528,12 +530,13 @@ class Node {
   async mergeFirstLeftEntries (entry, prepend, nodeOptions, final, distance) {
     const opts = nodeOptions.opts
     const { LeafClass, BranchClass, BranchEntryClass } = opts
-    // console.log('crash here', await entry.address)//, await Promise.all(final.nodes.map(async e => [e.constructor.name, e.key, await e.address])))
+    console.log('mergeFirstLeftEntries', await entry.address)//, await Promise.all(final.nodes.map(async e => [e.constructor.name, e.key, await e.address])))
     if (entry.isEntry) {
       const addr = await entry.address
       entry = await this.getNodeFirstFromBlocks(final.blocks, addr)
     }
     const es = entry.entryList.entries
+    console.log('entry.entryList.entries', entry.constructor.name, entry.key, es.map(e => e.key))
     /* c8 ignore next */
     if (!es.length) throw new Error('unreachable no entries')
     if (es[0].constructor.name === prepend.entryList.entries[0].constructor.name) {
@@ -544,11 +547,16 @@ class Node {
       if (!leftEntry) throw new Error('unreachable no left entry')
       /* c8 ignore next */
       if (!leftEntry.address) throw new Error('unreachable existing leaf, no leftEntry.address')
-      const mergeLeftEntries = await this.mergeFirstLeftEntries(leftEntry, prepend, nodeOptions, final, distance - 1)
+      const mergeLeftEntriesA = await this.mergeFirstLeftEntries(leftEntry, prepend, nodeOptions, final, distance - 1)
       const esf = es.shift()
       if (!esf) {
-        return mergeLeftEntries
+        return mergeLeftEntriesA
       }
+      // const mergeLeftEntries = mergeLeftEntriesA.concat(es)
+      // try the above
+      const mergeLeftEntries = mergeLeftEntriesA
+      console.log('Merged entries:', mergeLeftEntries.map(e => [e.constructor.name, e.key]))
+
       /* c8 ignore next */
       if (!esf.address) throw new Error('unreachable existing leaf, no esf.address')
       // try {
@@ -573,6 +581,8 @@ class Node {
           distance
         })
         // }
+        console.log('mergeLeftNodes:', mergeLeftNodes.map(n => n.key))
+
         const mergeLeftBranchEntries = await Promise.all(mergeLeftNodes.map(async l => {
           final.blocks.push({ block: await l.encode(), node: l })
           this.cache.set(l)
@@ -584,11 +594,15 @@ class Node {
           NodeClass: BranchClass,
           distance
         })
+        console.log('newFirstNodes:', newFirstNodes.map(n => n.key))
+
         const newBranchEntries = await Promise.all(newFirstNodes.map(async (l) => {
           final.blocks.push({ block: await l.encode(), node: l })
           this.cache.set(l)
           return new BranchEntryClass({ key: l.key, address: await l.address }, opts)
         }))
+        console.log('newBranchEntries:', newBranchEntries.map(e => e.key))
+
         return newBranchEntries
       }
       // } catch (err) {
