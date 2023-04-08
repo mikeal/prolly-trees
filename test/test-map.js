@@ -168,20 +168,89 @@ describe('map', () => {
       notDeleted.splice(index, 1)
       deleted.push(key)
       // console.log('deleted', deleted.length, 'notDeleted', notDeleted.length, bulk)
-      let { blocks, root } = await last.bulk(bulk)
+      const { blocks, root } = await last.bulk(bulk)
       await Promise.all(blocks.map(block => put(block)))
-      const _get = async (k) => (await root.get(k)).result
-      for (const key of notDeleted) {
-        same(await _get(key), list.find(({ key: k }) => k === key).value)
+      if (notDeleted.length > 0) {
+        const _get = async (k) => (await root.get(k)).result
+        for (const key of notDeleted) {
+          same(await _get(key), list.find(({ key: k }) => k === key).value)
+        }
+        for (const key of deleted) {
+          same(await _get(key).catch(e => e.message), 'Not found')
+        }
+        last = root
       }
-      for (const key of deleted) {
-        same(await _get(key).catch(e => e.message), 'Not found')
-      }
-      ;({ blocks, root } = await root.bulk([{ key: Math.random.toString(), value: Math.random() }]))
-      await Promise.all(blocks.map(block => put(block)))
-      last = root
+
+      // ;({ blocks, root } = await root.bulk([{ key: Math.random.toString(), value: Math.random() }]))
+      // await Promise.all(blocks.map(block => put(block)))
     }
   })
+  it('bulk with missing delete', async () => {
+    const { get, put } = storage()
+    let last
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      last = node
+    }
+    const verify = (entries, start, end) => {
+      const keys = entries.map((entry) => entry.key)
+      const comp = list.slice(start, end).map(({ key }) => key)
+      same(keys, comp)
+    }
+    const { result: entries } = await last.getAllEntries()
+    verify(entries)
+
+    const notDeleted = list.map(({ key }) => key)
+    const deleted = []
+    let prevKey = list[0].key
+    for (const { key } of list) {
+      const missingKey = 'missing-key' // Add a key not in the entry list
+      const bulk = [
+        { key, del: true },
+        { key: key + 'add', value: 'add' },
+        { key: key + 'del', del: true },
+        { key: prevKey, del: true },
+        { key: key + missingKey, value: key + missingKey },
+        { key: prevKey + 'add', value: 'add' },
+        { key: key + missingKey, del: true }
+      ]
+      prevKey = key
+      // remove key from notDeleted
+      const index = notDeleted.indexOf(key)
+      notDeleted.splice(index, 1)
+      deleted.push(key)
+      console.log('bulk keys', bulk.map(({ key }) => key))
+      const { blocks, root } = await last.bulk(bulk)
+      await Promise.all(blocks.map((block) => put(block)))
+      const allres = await root.getAllEntries()
+      for (const op of bulk) {
+        if (!op.del) {
+          const allVal = allres.result.find(({ key: k }) => k === op.key).value
+          same(allVal, op.value)
+          same((await root.get(op.key)).result, op.value)
+        } else {
+          if (op.key.indexOf('missing-key') !== 1) {
+            same(await root.get(op.key).catch((e) => e.message), 'Not found')
+          }
+        }
+      }
+      if (notDeleted.length > 0) {
+        const _get = async (k) => (await root.get(k)).result
+        for (const key of notDeleted) {
+          console.log('get', key, 'notDeleted', notDeleted.length, 'deleted', deleted.length, 'bulk', bulk.length)
+          same((await _get(key).catch(e => {
+            console.log('error getting', key, e.message)
+            throw e
+          })), list.find(({ key: k }) => k === key).value)
+        }
+        for (const key of deleted) {
+          same(await _get(key).catch(e => e.message), 'Not found')
+        }
+        last = root
+      }
+    }
+  })
+
   it('bulk insert 2', async () => {
     const { get, put } = storage()
     let last
