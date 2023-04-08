@@ -371,10 +371,7 @@ class Node {
     const results = this.entryList.findMany(bulk, opts.compare, true, this.isLeaf)
     // console.log('transaction', bulk.map(({ key }) => key), 'results', JSON.stringify([...results.values()].map((entry) => [entry[0].key, entry[1].map(({ key }) => key)])))
     if (this.isLeaf) {
-      const newLeaf = await this.transactionLeaf(bulk, opts, nodeOptions, results)
-      if (newLeaf) return newLeaf
-      // newLeaf is null if everything in it got deleted, we need to call transactionBranch without 'this', on our parents
-      // return await this.transactionBranch(bulk, opts, nodeOptions, results)
+      return await this.transactionLeaf(bulk, opts, nodeOptions, results)
     } else {
       return await this.transactionBranch(bulk, opts, nodeOptions, results)
     }
@@ -384,7 +381,6 @@ class Node {
     const { LeafClass, LeafEntryClass } = opts
     const { entries, previous } = this.processLeafEntries(bulk, results, LeafEntryClass, opts)
     // console.log('transactionLeaf', bulk.map(({ key }) => key), 'entries', JSON.stringify(entries.map(({ key }) => key)))
-    if (!entries.length) return { previous, nodes: [], blocks: [], distance: 0 }
 
     const _opts = { ...nodeOptions, entries, NodeClass: LeafClass, distance: 0 }
     const nodes = await Node.from(_opts)
@@ -451,9 +447,6 @@ class Node {
     const final = { previous: [], blocks: [], nodes: [] } // type of results is a map not our return value
     for (const [i, p] of results) {
       const { nodes, previous, blocks, distance: _distance } = await p
-      // if (nodes.length === 0) {
-      //   throw new Error('transactionBranch: nodes.length === 0')
-      // }
       distance = _distance
       entries[i] = nodes
       if (previous.length) final.previous = final.previous.concat(previous)
