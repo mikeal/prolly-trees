@@ -424,7 +424,7 @@ class Node {
     }
     let count = 0
     for (const [, i] of deletes) {
-      entries.splice(i - count++, 1)
+      if (i !== null) entries.splice(i - count++, 1)
     }
     const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
     // TODO: there's a faster version of this that only does one iteration
@@ -713,7 +713,7 @@ class Node {
     }
     results.root = results.nodes[0]
 
-    if (isRoot) {
+    if (isRoot && results.root) {
       await processRoot(this, results, bulk, nodeOptions)
     }
     results.blocks = results.blocks.map(({ block }) => block)

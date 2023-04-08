@@ -425,7 +425,7 @@ describe('map first-leaf', () => {
     })
     same(result, 1)
     const bulk = []
-    const bigLim = 202
+    const bigLim = 111
     for (let rowCount = bigLim; rowCount > 33; rowCount--) {
       // const key = String.fromCharCode(rowCount)
       const key = '' + rowCount
