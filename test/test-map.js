@@ -143,6 +143,42 @@ describe('map', () => {
       same(err.message, 'Faulty CID encountered', 'Unexpected error thrown')
     }
   })
+  it('bulk with delete', async () => {
+    const { get, put } = storage()
+    let last
+    for await (const node of create({ get, compare, list, ...opts })) {
+      await put(await node.block)
+      last = node
+    }
+    const verify = (entries, start, end) => {
+      const keys = entries.map(entry => entry.key)
+      const comp = list.slice(start, end).map(({ key }) => key)
+      same(keys, comp)
+    }
+    const { result: entries } = await last.getAllEntries()
+    verify(entries)
+
+    const notDeleted = list.map(({ key }) => (key))
+    const deleted = []
+    for (const { key } of list) {
+      const bulk = [{ key, del: true }]
+
+      // remove key from notDeleted
+      const index = notDeleted.indexOf(key)
+      notDeleted.splice(index, 1)
+      deleted.push(key)
+      const { blocks, root } = await last.bulk(bulk)
+      await Promise.all(blocks.map(block => put(block)))
+      const _get = async (k) => (await root.get(k)).result
+      for (const key of notDeleted) {
+        same(await _get(key), list.find(({ key: k }) => k === key).value)
+      }
+      for (const key of deleted) {
+        same(await _get(key).catch(e => e.message), 'Not found')
+      }
+      last = root
+    }
+  })
   it('bulk insert 2', async () => {
     const { get, put } = storage()
     let last
