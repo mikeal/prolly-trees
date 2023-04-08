@@ -167,7 +167,6 @@ describe('map', () => {
       const index = notDeleted.indexOf(key)
       notDeleted.splice(index, 1)
       deleted.push(key)
-      // console.log('deleted', deleted.length, 'notDeleted', notDeleted.length, bulk)
       const { blocks, root } = await last.bulk(bulk)
       await Promise.all(blocks.map(block => put(block)))
       if (notDeleted.length > 0) {
@@ -219,7 +218,6 @@ describe('map', () => {
       const index = notDeleted.indexOf(key)
       notDeleted.splice(index, 1)
       deleted.push(key)
-      console.log('bulk keys', bulk.map(({ key }) => key))
       const { blocks, root } = await last.bulk(bulk)
       await Promise.all(blocks.map((block) => put(block)))
       const allres = await root.getAllEntries()
@@ -229,7 +227,7 @@ describe('map', () => {
           same(allVal, op.value)
           same((await root.get(op.key)).result, op.value)
         } else {
-          if (op.key.indexOf('missing-key') !== 1) {
+          if (op.key.indexOf('missing-key') === -1) {
             same(await root.get(op.key).catch((e) => e.message), 'Not found')
           }
         }
@@ -237,9 +235,7 @@ describe('map', () => {
       if (notDeleted.length > 0) {
         const _get = async (k) => (await root.get(k)).result
         for (const key of notDeleted) {
-          console.log('get', key, 'notDeleted', notDeleted.length, 'deleted', deleted.length, 'bulk', bulk.length)
           same((await _get(key).catch(e => {
-            console.log('error getting', key, e.message)
             throw e
           })), list.find(({ key: k }) => k === key).value)
         }

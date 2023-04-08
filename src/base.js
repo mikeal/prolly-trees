@@ -425,8 +425,7 @@ class Node {
     let count = 0
     for (const [, i] of deletes) {
       // if (i === null) throw new Error('delete not found')
-      // if (i !== null)
-      entries.splice(i - count++, 1)
+      if (i !== null) entries.splice(i - count++, 1)
     }
     const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
     // TODO: there's a faster version of this that only does one iteration
