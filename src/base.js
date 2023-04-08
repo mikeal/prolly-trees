@@ -428,7 +428,7 @@ class Node {
     }
     let count = 0
     for (const [, i] of deletes) {
-      entries.splice(i - count++, 1)
+      if (i !== null) entries.splice(i - count++, 1)
     }
     const appends = Object.values(changes).map(obj => new LeafEntryClass(obj, opts))
     // TODO: there's a faster version of this that only does one iteration
@@ -689,9 +689,6 @@ class Node {
 
     const results = await this.transaction(bulk, opts)
     // console.log('results.nodes', results.nodes.length)
-    if (results.nodes.length === 0) {
-      throw new Error('unreachable no nodes')
-    }
     while (results.nodes.length > 1) {
       const newDistance = results.nodes[0].distance + 1
 

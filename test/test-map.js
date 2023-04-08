@@ -167,7 +167,8 @@ describe('map', () => {
       const index = notDeleted.indexOf(key)
       notDeleted.splice(index, 1)
       deleted.push(key)
-      const { blocks, root } = await last.bulk(bulk)
+      // console.log('deleted', deleted.length, 'notDeleted', notDeleted.length, bulk)
+      let { blocks, root } = await last.bulk(bulk)
       await Promise.all(blocks.map(block => put(block)))
       const _get = async (k) => (await root.get(k)).result
       for (const key of notDeleted) {
@@ -176,6 +177,8 @@ describe('map', () => {
       for (const key of deleted) {
         same(await _get(key).catch(e => e.message), 'Not found')
       }
+      ;({ blocks, root } = await root.bulk([{ key: Math.random.toString(), value: Math.random() }]))
+      await Promise.all(blocks.map(block => put(block)))
       last = root
     }
   })
