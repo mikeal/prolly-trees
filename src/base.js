@@ -681,7 +681,6 @@ class Node {
     const nodeOptions = { chunker: this.chunker, opts }
 
     const results = await this.transaction(bulk, opts)
-    // console.log('results.nodes', results.nodes.length)
     while (results.nodes.length > 1) {
       const newDistance = results.nodes[0].distance + 1
 
