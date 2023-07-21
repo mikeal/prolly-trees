@@ -151,7 +151,7 @@ async function generateBranchEntries (that, newLeaves, results, opts) {
 
 async function processRoot (that, results, bulk, nodeOptions) {
   const root = results.root
-  results.blocks.push({ block: await root.encode(), node: root })
+  // results.blocks.push({ block: await root.encode(), node: root })
 
   that.cache.set(root)
   const opts = nodeOptions.opts
